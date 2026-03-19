@@ -43,6 +43,7 @@ export type CandidateEvaluation = {
 
 export type EvaluationProvider = "venice" | "local";
 export type SettlementProvider = "uniswap" | "local";
+export type ReceiptProvider = "filecoin" | "local";
 
 export type BrokerEvaluationResponse = {
   taskSnapshot: TaskForm;
@@ -94,6 +95,12 @@ export type Receipt = {
   storagePlan: string;
   trustUpdate: string;
   executionSummary: string;
+};
+
+export type ReceiptUploadResponse = {
+  receipt: Receipt;
+  providerUsed: ReceiptProvider;
+  diagnostics: string[];
 };
 
 export const defaultTask: TaskForm = {

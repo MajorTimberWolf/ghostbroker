@@ -16,3 +16,4 @@
 - Fixed the Venice path so the live app now returns real `providerUsed: "venice"` evaluations by switching to a flash-tier model, disabling reasoning output, and preserving a local fallback when the API is unavailable.
 - Replaced the cosmetic approval step with a real MetaMask Smart Accounts Kit integration that connects to the wallet, checks ERC-7715 execution-permission support, and requests a bounded GhostBroker execution permission tied to the frozen task snapshot.
 - Added a server-side Uniswap quote route that uses the official Trade API when a wallet and API key are available, while keeping the settlement card honest about when it is still showing a local fallback plan.
+- Added a server-side receipt route that pins receipt bundles through Lighthouse when `LIGHTHOUSE_API_KEY` is available and otherwise keeps the UI explicit about the local-only fallback.

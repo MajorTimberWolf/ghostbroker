@@ -9,7 +9,6 @@ import { useEffect, useState } from "react";
 
 import {
   buildDelegationPlan,
-  buildReceipt,
   buildSettlementPlan,
   defaultTask,
   taskFingerprint,
@@ -19,6 +18,8 @@ import {
   type DelegationPlan,
   type EvaluationProvider,
   type Receipt,
+  type ReceiptProvider,
+  type ReceiptUploadResponse,
   type SettlementPlan,
   type SettlementProvider,
   type SettlementQuoteResponse,
@@ -50,6 +51,7 @@ type RunState = {
   taskSnapshot: TaskForm | null;
   providerUsed: EvaluationProvider | null;
   settlementProviderUsed: SettlementProvider | null;
+  receiptProviderUsed: ReceiptProvider | null;
   isLoading: boolean;
   error: string | null;
   approvalPending: boolean;
@@ -58,6 +60,9 @@ type RunState = {
   settlementPending: boolean;
   settlementError: string | null;
   settlementDiagnostics: string[];
+  receiptPending: boolean;
+  receiptError: string | null;
+  receiptDiagnostics: string[];
 };
 
 const initialRunState: RunState = {
@@ -73,6 +78,7 @@ const initialRunState: RunState = {
   taskSnapshot: null,
   providerUsed: null,
   settlementProviderUsed: null,
+  receiptProviderUsed: null,
   isLoading: false,
   error: null,
   approvalPending: false,
@@ -81,6 +87,9 @@ const initialRunState: RunState = {
   settlementPending: false,
   settlementError: null,
   settlementDiagnostics: [],
+  receiptPending: false,
+  receiptError: null,
+  receiptDiagnostics: [],
 };
 
 type WalletState = {
@@ -119,6 +128,14 @@ function sectionCardClasses(tall = false) {
 
 function providerTone(providerUsed: EvaluationProvider | null) {
   if (providerUsed === "venice") {
+    return "border-emerald-300 bg-emerald-50 text-emerald-900";
+  }
+
+  return "border-amber-300 bg-amber-50 text-amber-900";
+}
+
+function receiptTone(providerUsed: ReceiptProvider | null) {
+  if (providerUsed === "filecoin") {
     return "border-emerald-300 bg-emerald-50 text-emerald-900";
   }
 
@@ -259,6 +276,7 @@ export function GhostBrokerConsole() {
       taskSnapshot: payload.taskSnapshot,
       providerUsed: payload.providerUsed,
       settlementProviderUsed: null,
+      receiptProviderUsed: null,
       isLoading: false,
       error: null,
       approvalPending: false,
@@ -267,6 +285,9 @@ export function GhostBrokerConsole() {
       settlementPending: false,
       settlementError: null,
       settlementDiagnostics: [],
+      receiptPending: false,
+      receiptError: null,
+      receiptDiagnostics: [],
     });
   }
 
@@ -284,12 +305,16 @@ export function GhostBrokerConsole() {
       approved: false,
       settled: false,
       settlementProviderUsed: null,
+      receiptProviderUsed: null,
       approvalPending: false,
       approvalError: null,
       grantedPermission: null,
       settlementPending: true,
       settlementError: null,
       settlementDiagnostics: [],
+      receiptPending: false,
+      receiptError: null,
+      receiptDiagnostics: [],
     }));
   }
 
@@ -473,18 +498,69 @@ export function GhostBrokerConsole() {
     }
   }
 
-  function handleSettle() {
-    if (!run.selected || !run.settlement || !run.taskSnapshot) return;
+  async function handleSettle() {
+    if (!run.selected || !run.settlement || !run.taskSnapshot || !run.evaluationId) return;
 
-    const selected = run.selected;
-    const settlement = run.settlement;
-    const taskSnapshot = run.taskSnapshot;
+    const selectedAgentId = run.selected.agent.id;
+    const settlementPlan = run.settlement;
+    const evaluationId = run.evaluationId;
 
     setRun((current) => ({
       ...current,
-      settled: true,
-      receipt: buildReceipt(taskSnapshot, selected, settlement),
+      receiptPending: true,
+      receiptError: null,
+      receiptDiagnostics: [],
     }));
+
+    try {
+      const response = await fetch("/api/broker/receipt", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          evaluationId,
+          agentId: selectedAgentId,
+          settlementPlan,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorPayload = (await response.json()) as { error?: string };
+
+        setRun((current) => ({
+          ...current,
+          receiptPending: false,
+          receiptError:
+            errorPayload.error ?? "Receipt bundle creation failed unexpectedly.",
+        }));
+        return;
+      }
+
+      const payload = (await response.json()) as ReceiptUploadResponse;
+
+      setRun((current) => {
+        if (current.selected?.agent.id !== selectedAgentId) {
+          return current;
+        }
+
+        return {
+          ...current,
+          settled: true,
+          receipt: payload.receipt,
+          receiptProviderUsed: payload.providerUsed,
+          receiptPending: false,
+          receiptError: null,
+          receiptDiagnostics: payload.diagnostics,
+        };
+      });
+    } catch (error) {
+      setRun((current) => ({
+        ...current,
+        receiptPending: false,
+        receiptError: toErrorMessage(error),
+      }));
+    }
   }
 
   function handleReset() {
@@ -518,6 +594,10 @@ export function GhostBrokerConsole() {
   const canRequestPermission =
     Boolean(run.delegation && run.taskSnapshot && wallet.account) &&
     Boolean(permissionSupport?.isTypeSupported && permissionSupport.isChainSupported);
+  const receiptProviderUsed = run.receiptProviderUsed ?? null;
+  const receiptPending = run.receiptPending ?? false;
+  const receiptError = run.receiptError ?? null;
+  const receiptDiagnostics = run.receiptDiagnostics ?? [];
 
   return (
     <main className="min-h-screen bg-[var(--surface-0)] text-[var(--ink-strong)]">
@@ -1113,11 +1193,15 @@ export function GhostBrokerConsole() {
                           ? "bg-emerald-600 text-white"
                           : "bg-[var(--accent-blue)] text-white hover:brightness-110"
                     }`}
-                    disabled={!run.approved || run.settled}
-                    onClick={handleSettle}
+                    disabled={!run.approved || run.settled || receiptPending}
+                    onClick={() => {
+                      void handleSettle();
+                    }}
                     type="button"
                   >
-                    {run.settled
+                    {receiptPending
+                      ? "Writing receipt bundle…"
+                      : run.settled
                       ? "Settlement executed"
                       : run.settlementPending
                         ? "Waiting for settlement quote…"
@@ -1138,30 +1222,67 @@ export function GhostBrokerConsole() {
 
             {!run.receipt ? (
               <div className="mt-5">
-                <EmptyState text="Receipt bundle is emitted after settlement completes." />
+                <EmptyState
+                  text={
+                    receiptPending
+                      ? "Receipt bundle is being pinned to storage."
+                      : "Receipt bundle is emitted after settlement completes."
+                  }
+                />
               </div>
             ) : (
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-1)] p-4">
-                  <KeyValue label="Receipt ID" value={run.receipt.id} />
-                  <KeyValue label="Provider" value={run.receipt.providerEns} />
-                  <KeyValue
-                    label="Payout"
-                    value={`${run.receipt.amount} ${run.receipt.token}`}
-                  />
-                  <KeyValue
-                    label="Receipt anchor"
-                    value={run.receipt.receiptAnchor}
-                  />
+              <div className="mt-5 space-y-4">
+                <div
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] ${receiptTone(receiptProviderUsed)}`}
+                >
+                  <span>
+                    {receiptProviderUsed === "filecoin"
+                      ? "filecoin receipt"
+                      : "local receipt"}
+                  </span>
                 </div>
 
-                <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-1)] p-4 text-sm leading-7 text-[var(--ink-soft)]">
-                  <p>{run.receipt.storagePlan}</p>
-                  <p className="mt-4">{run.receipt.trustUpdate}</p>
-                  <p className="mt-4">{run.receipt.executionSummary}</p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                    <KeyValue label="Receipt ID" value={run.receipt.id} />
+                    <KeyValue label="Provider" value={run.receipt.providerEns} />
+                    <KeyValue
+                      label="Payout"
+                      value={`${run.receipt.amount} ${run.receipt.token}`}
+                    />
+                    <KeyValue
+                      label="Receipt anchor"
+                      value={run.receipt.receiptAnchor}
+                    />
+                  </div>
+
+                  <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-1)] p-4 text-sm leading-7 text-[var(--ink-soft)]">
+                    <p>{run.receipt.storagePlan}</p>
+                    <p className="mt-4">{run.receipt.trustUpdate}</p>
+                    <p className="mt-4">{run.receipt.executionSummary}</p>
+                  </div>
                 </div>
               </div>
             )}
+
+            {receiptError ? (
+              <div className="mt-4 rounded-[1.25rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                {receiptError}
+              </div>
+            ) : null}
+
+            {receiptDiagnostics.length > 0 ? (
+              <div className="mt-4 rounded-[1.25rem] border border-[var(--border)] bg-[rgba(255,250,244,0.78)] px-4 py-3 text-sm leading-7 text-[var(--ink-soft)]">
+                <p className="font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                  Receipt diagnostics
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {receiptDiagnostics.map((item, index) => (
+                    <li key={`receipt-diagnostic-${index}`}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

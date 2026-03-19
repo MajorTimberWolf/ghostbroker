@@ -35,3 +35,4 @@
 - Venice evaluation is live in the app and returns `providerUsed: "venice"` when the API key is present.
 - MetaMask bounded execution permission requests are live for supported wallets.
 - Uniswap quote retrieval is live when a wallet and API key are present; transaction execution is still pending.
+- Filecoin receipt storage is wired through Lighthouse; it falls back to a local placeholder until `LIGHTHOUSE_API_KEY` is configured.

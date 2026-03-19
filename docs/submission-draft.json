@@ -35,7 +35,8 @@
       "Venice API",
       "MetaMask Smart Accounts Kit",
       "viem",
-      "Uniswap Trade API"
+      "Uniswap Trade API",
+      "Lighthouse SDK"
     ],
     "helpfulResources": [
       "https://synthesis.md/",
@@ -49,7 +50,9 @@
       "https://github.com/MetaMask/smart-accounts-kit",
       "https://docs.metamask.io/smart-accounts-kit/get-started/quickstart/",
       "https://api-docs.uniswap.org/api-reference/swapping/quote",
-      "https://api-docs.uniswap.org/guides/faqs"
+      "https://api-docs.uniswap.org/guides/faqs",
+      "https://docs.filecoin.io/builder-cookbook/data-storage/store-data",
+      "https://docs.lighthouse.storage/lighthouse-1/how-to/upload-data/buffer"
     ],
     "helpfulSkills": [
       {
