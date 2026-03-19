@@ -1,24 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f2eb;
-  --foreground: #18130f;
-  --surface-0: #f7f2eb;
-  --surface-1: #fffaf4;
-  --ink-strong: #18130f;
-  --ink-soft: #544a41;
-  --ink-muted: #7c6f63;
-  --border: rgba(32, 24, 17, 0.12);
-  --border-strong: rgba(32, 24, 17, 0.18);
-  --accent-coral: #ff7f50;
-  --accent-blue: #2457ff;
-  --accent-gold: #f0c36b;
+  --surface-0: #faf8f5;
+  --surface-1: #ffffff;
+  --surface-2: #f5f2ee;
+  --surface-raised: rgba(255, 255, 255, 0.88);
+  --surface-glass: rgba(250, 248, 245, 0.72);
+  --ink-strong: #1c1917;
+  --ink-body: #44403c;
+  --ink-soft: #78716c;
+  --ink-muted: #a8a29e;
+  --ink-faint: #d6d3d1;
+  --border: rgba(28, 25, 23, 0.06);
+  --border-strong: rgba(28, 25, 23, 0.12);
+  --accent-coral: #dc4a2c;
+  --accent-blue: #2563eb;
+  --accent-gold: #ca8a04;
+  --accent-emerald: #059669;
+  --step-active: #1c1917;
+  --step-done: #059669;
+  --step-pending: #d6d3d1;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --color-background: var(--surface-0);
+  --color-foreground: var(--ink-strong);
+  --font-sans: var(--font-body);
   --font-mono: var(--font-mono);
 }
 
@@ -28,21 +35,40 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), sans-serif;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
+  background: var(--surface-0);
+  color: var(--ink-body);
+  font-family: var(--font-body), system-ui, sans-serif;
 }
 
 ::selection {
-  background: rgba(36, 87, 255, 0.18);
+  background: rgba(37, 99, 235, 0.12);
+}
+
+/* Card hover lift */
+.card-lift {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.2s ease;
+}
+.card-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(28, 25, 23, 0.06);
+}
+
+/* Subtle grain */
+.grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 9999;
 }
 
 @media (max-width: 640px) {
