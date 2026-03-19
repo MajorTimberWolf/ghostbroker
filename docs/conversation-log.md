@@ -13,5 +13,6 @@
 - Replaced the landing page with a working GhostBroker console covering intake, private evaluation, provider ranking, delegated approval, settlement planning, and receipt emission.
 - Moved broker evaluation behind `/api/broker/evaluate`, added frozen task snapshots and evaluation IDs, and made the UI honest about whether inference is real (`venice`) or fallback (`local`).
 - Wired the broker route to Venice's official OpenAI-compatible chat completions API with environment-based fallback to local evaluation.
+- Fixed the Venice path so the live app now returns real `providerUsed: "venice"` evaluations by switching to a flash-tier model, disabling reasoning output, and preserving a local fallback when the API is unavailable.
 - Replaced the cosmetic approval step with a real MetaMask Smart Accounts Kit integration that connects to the wallet, checks ERC-7715 execution-permission support, and requests a bounded GhostBroker execution permission tied to the frozen task snapshot.
 - Added a server-side Uniswap quote route that uses the official Trade API when a wallet and API key are available, while keeping the settlement card honest about when it is still showing a local fallback plan.

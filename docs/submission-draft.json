@@ -21,7 +21,7 @@
     "agentFramework": "other",
     "agentFrameworkOther": "custom Next.js and TypeScript application",
     "agentHarness": "other",
-    "agentHarnessOther": "codex desktop",
+    "agentHarnessOther": "codex desktop with Claude Opus architectural review",
     "model": "gpt-5",
     "skills": [
       "brainstorming-research-ideas",

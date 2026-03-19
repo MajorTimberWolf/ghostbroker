@@ -25,7 +25,8 @@ export async function POST(request: Request) {
         evaluationId: crypto.randomUUID(),
         providerUsed: "venice",
       };
-    } catch {
+    } catch (error) {
+      console.error("Venice evaluation failed; falling back to local scoring.", error);
       result = {
         taskSnapshot,
         memo: buildPrivateMemo(taskSnapshot),
