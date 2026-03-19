@@ -1,3 +1,5 @@
+import type { Address } from "viem";
+
 export type Urgency = "today" | "48h" | "this-week";
 export type Confidentiality = "standard" | "sensitive" | "sealed";
 export type SettlementToken = "USDC" | "ETH" | "cUSD";
@@ -18,6 +20,7 @@ export type AgentProfile = {
   id: string;
   name: string;
   ens: string;
+  delegateAddress: Address;
   specialty: string;
   summary: string;
   feeRate: number;
@@ -50,8 +53,10 @@ export type BrokerEvaluationResponse = {
 
 export type DelegationPlan = {
   delegate: string;
+  delegateAddress: Address;
   spendCap: number;
   chain: string;
+  chainId: number;
   expiryHours: number;
   permissions: string[];
   guardrails: string[];
@@ -96,6 +101,7 @@ export const agents: AgentProfile[] = [
     id: "venice-risk-desk",
     name: "Venice Risk Desk",
     ens: "riskdesk.ghost.eth",
+    delegateAddress: "0x1111111111111111111111111111111111111111",
     specialty: "Private due diligence",
     summary:
       "High-confidence private evaluation agent for sensitive finance and counterparty screening.",
@@ -113,6 +119,7 @@ export const agents: AgentProfile[] = [
     id: "uniswap-settler",
     name: "Uniswap Settler",
     ens: "settler.ghost.eth",
+    delegateAddress: "0x2222222222222222222222222222222222222222",
     specialty: "Execution and routing",
     summary:
       "Execution-focused agent for swaps, routing, and payout settlement across supported rails.",
@@ -130,6 +137,7 @@ export const agents: AgentProfile[] = [
     id: "receipts-notary",
     name: "Receipts Notary",
     ens: "notary.ghost.eth",
+    delegateAddress: "0x3333333333333333333333333333333333333333",
     specialty: "Receipts and provenance",
     summary:
       "Agent optimized for execution logging, reputation updates, and durable proof trails.",
@@ -147,6 +155,7 @@ export const agents: AgentProfile[] = [
     id: "celo-field-ops",
     name: "Celo Field Ops",
     ens: "fieldops.ghost.eth",
+    delegateAddress: "0x4444444444444444444444444444444444444444",
     specialty: "Mobile-first payouts",
     summary:
       "Stablecoin-native operations agent for fast real-world settlement and service delivery.",
@@ -289,8 +298,10 @@ export function buildDelegationPlan(
 
   return {
     delegate: candidate.agent.ens,
+    delegateAddress: candidate.agent.delegateAddress,
     spendCap,
     chain: task.payoutToken === "cUSD" ? "Celo" : "Base",
+    chainId: task.payoutToken === "cUSD" ? 42220 : 8453,
     expiryHours: task.urgency === "today" ? 8 : task.urgency === "48h" ? 24 : 72,
     permissions: [
       "Request quote from approved settlement rail",

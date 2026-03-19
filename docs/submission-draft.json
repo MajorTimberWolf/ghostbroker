@@ -32,7 +32,9 @@
       "TypeScript",
       "Tailwind CSS",
       "Synthesis API",
-      "Venice API"
+      "Venice API",
+      "MetaMask Smart Accounts Kit",
+      "viem"
     ],
     "helpfulResources": [
       "https://synthesis.md/",
@@ -42,7 +44,9 @@
       "https://synthesis.devfolio.co/catalog?page=1&limit=50",
       "https://synthesis.devfolio.co/catalog/open_track",
       "https://docs.venice.ai/welcome/getting-started",
-      "https://docs.venice.ai/api-reference/endpoint/chat/completions"
+      "https://docs.venice.ai/api-reference/endpoint/chat/completions",
+      "https://github.com/MetaMask/smart-accounts-kit",
+      "https://docs.metamask.io/smart-accounts-kit/get-started/quickstart/"
     ],
     "helpfulSkills": [
       {
@@ -51,7 +55,7 @@
       },
       {
         "name": "frontend-design",
-        "reason": "Helped keep the broker console visually intentional while converting the landing page into a workflow-first interface."
+        "reason": "Helped keep the broker console visually intentional both when replacing the landing page with a workflow-first interface and when turning the approval step into a real wallet control surface."
       }
     ],
     "intention": "continuing",

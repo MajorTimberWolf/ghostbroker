@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import type {
+  GetGrantedExecutionPermissionsResult,
+  GetSupportedExecutionPermissionsResult,
+} from "@metamask/smart-accounts-kit/actions";
+import type { Address } from "viem";
+import { useEffect, useState } from "react";
 
 import {
   buildDelegationPlan,
@@ -18,6 +23,17 @@ import {
   type TaskForm,
   type Urgency,
 } from "@/lib/ghostbroker";
+import {
+  buildGhostBrokerPermissionRequest,
+  connectMetaMask,
+  formatAddress,
+  getMetaMaskProvider,
+  getPermissionBlueprint,
+  isBlueprintSupported,
+  loadMetaMaskExecutionPermissions,
+  readMetaMaskSession,
+  requestGhostBrokerExecutionPermission,
+} from "@/lib/metamask";
 
 type RunState = {
   memo: string[];
@@ -33,6 +49,9 @@ type RunState = {
   providerUsed: EvaluationProvider | null;
   isLoading: boolean;
   error: string | null;
+  approvalPending: boolean;
+  approvalError: string | null;
+  grantedPermission: GetGrantedExecutionPermissionsResult[number] | null;
 };
 
 const initialRunState: RunState = {
@@ -49,6 +68,33 @@ const initialRunState: RunState = {
   providerUsed: null,
   isLoading: false,
   error: null,
+  approvalPending: false,
+  approvalError: null,
+  grantedPermission: null,
+};
+
+type WalletState = {
+  isAvailable: boolean;
+  isMetaMask: boolean;
+  isHydrating: boolean;
+  isConnecting: boolean;
+  account: Address | null;
+  chainId: number | null;
+  supportedPermissions: GetSupportedExecutionPermissionsResult | null;
+  grantedPermissions: GetGrantedExecutionPermissionsResult;
+  capabilityError: string | null;
+};
+
+const initialWalletState: WalletState = {
+  isAvailable: false,
+  isMetaMask: false,
+  isHydrating: true,
+  isConnecting: false,
+  account: null,
+  chainId: null,
+  supportedPermissions: null,
+  grantedPermissions: [],
+  capabilityError: null,
 };
 
 const verdictTone = {
@@ -72,6 +118,93 @@ function providerTone(providerUsed: EvaluationProvider | null) {
 export function GhostBrokerConsole() {
   const [task, setTask] = useState<TaskForm>(defaultTask);
   const [run, setRun] = useState<RunState>(initialRunState);
+  const [wallet, setWallet] = useState<WalletState>(initialWalletState);
+
+  useEffect(() => {
+    let isActive = true;
+    const provider = getMetaMaskProvider();
+
+    async function hydrateWallet() {
+      const currentProvider = provider ?? getMetaMaskProvider();
+
+      if (!currentProvider) {
+        if (!isActive) return;
+        setWallet({
+          ...initialWalletState,
+          isHydrating: false,
+        });
+        return;
+      }
+
+      try {
+        const session = await readMetaMaskSession();
+        let supportedPermissions: GetSupportedExecutionPermissionsResult | null = null;
+        let grantedPermissions: GetGrantedExecutionPermissionsResult = [];
+        let capabilityError: string | null = null;
+
+        try {
+          const permissions = await loadMetaMaskExecutionPermissions();
+          supportedPermissions = permissions.supportedPermissions;
+          grantedPermissions = permissions.grantedPermissions;
+        } catch (error) {
+          capabilityError = toErrorMessage(error);
+        }
+
+        if (!isActive) return;
+
+        setWallet({
+          isAvailable: true,
+          isMetaMask: Boolean(currentProvider.isMetaMask),
+          isHydrating: false,
+          isConnecting: false,
+          account: session.account,
+          chainId: session.chainId,
+          supportedPermissions,
+          grantedPermissions,
+          capabilityError,
+        });
+      } catch (error) {
+        if (!isActive) return;
+
+        setWallet({
+          isAvailable: true,
+          isMetaMask: Boolean(currentProvider.isMetaMask),
+          isHydrating: false,
+          isConnecting: false,
+          account: null,
+          chainId: null,
+          supportedPermissions: null,
+          grantedPermissions: [],
+          capabilityError: toErrorMessage(error),
+        });
+      }
+    }
+
+    void hydrateWallet();
+
+    if (!provider?.on || !provider.removeListener) {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    const handleAccountsChanged = () => {
+      void hydrateWallet();
+    };
+
+    const handleChainChanged = () => {
+      void hydrateWallet();
+    };
+
+    provider.on("accountsChanged", handleAccountsChanged);
+    provider.on("chainChanged", handleChainChanged);
+
+    return () => {
+      isActive = false;
+      provider.removeListener?.("accountsChanged", handleAccountsChanged);
+      provider.removeListener?.("chainChanged", handleChainChanged);
+    };
+  }, []);
 
   function updateTask<K extends keyof TaskForm>(key: K, value: TaskForm[K]) {
     setTask((current) => ({ ...current, [key]: value }));
@@ -117,6 +250,9 @@ export function GhostBrokerConsole() {
       providerUsed: payload.providerUsed,
       isLoading: false,
       error: null,
+      approvalPending: false,
+      approvalError: null,
+      grantedPermission: null,
     });
   }
 
@@ -133,14 +269,112 @@ export function GhostBrokerConsole() {
       receipt: null,
       approved: false,
       settled: false,
+      approvalPending: false,
+      approvalError: null,
+      grantedPermission: null,
     }));
   }
 
-  function handleApprove() {
+  async function handleConnectWallet() {
+    setWallet((current) => ({
+      ...current,
+      isConnecting: true,
+      capabilityError: null,
+    }));
+
+    try {
+      const session = await connectMetaMask();
+      let supportedPermissions: GetSupportedExecutionPermissionsResult | null = null;
+      let grantedPermissions: GetGrantedExecutionPermissionsResult = [];
+      let capabilityError: string | null = null;
+
+      try {
+        const permissions = await loadMetaMaskExecutionPermissions();
+        supportedPermissions = permissions.supportedPermissions;
+        grantedPermissions = permissions.grantedPermissions;
+      } catch (error) {
+        capabilityError = toErrorMessage(error);
+      }
+
+      setWallet({
+        isAvailable: true,
+        isMetaMask: Boolean(getMetaMaskProvider()?.isMetaMask),
+        isHydrating: false,
+        isConnecting: false,
+        account: session.account,
+        chainId: session.chainId,
+        supportedPermissions,
+        grantedPermissions,
+        capabilityError,
+      });
+    } catch (error) {
+      setWallet((current) => ({
+        ...current,
+        isConnecting: false,
+        capabilityError: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function handleApprove() {
+    if (!run.delegation || !run.taskSnapshot) return;
+
+    if (!wallet.account) {
+      await handleConnectWallet();
+      return;
+    }
+
+    const blueprint = getPermissionBlueprint(run.taskSnapshot.payoutToken);
+    const supportState = isBlueprintSupported({
+      blueprint,
+      supportedPermissions: wallet.supportedPermissions,
+    });
+
+    if (!supportState.isTypeSupported || !supportState.isChainSupported) {
+      setRun((current) => ({
+        ...current,
+        approvalError:
+          "MetaMask does not currently report support for this execution permission on the required chain.",
+      }));
+      return;
+    }
+
     setRun((current) => ({
       ...current,
-      approved: true,
+      approvalPending: true,
+      approvalError: null,
     }));
+
+    try {
+      const permissionResult = await requestGhostBrokerExecutionPermission({
+        account: wallet.account,
+        task: run.taskSnapshot,
+        delegation: run.delegation,
+      });
+      const permissions = await loadMetaMaskExecutionPermissions();
+
+      setWallet((current) => ({
+        ...current,
+        grantedPermissions: permissions.grantedPermissions,
+        supportedPermissions: permissions.supportedPermissions,
+      }));
+
+      setRun((current) => ({
+        ...current,
+        approved: Boolean(permissionResult.latestGrant),
+        approvalPending: false,
+        approvalError: permissionResult.latestGrant
+          ? null
+          : "MetaMask returned no execution permission context.",
+        grantedPermission: permissionResult.latestGrant,
+      }));
+    } catch (error) {
+      setRun((current) => ({
+        ...current,
+        approvalPending: false,
+        approvalError: toErrorMessage(error),
+      }));
+    }
   }
 
   function handleSettle() {
@@ -165,6 +399,29 @@ export function GhostBrokerConsole() {
   const hasTaskDrift =
     run.taskSnapshot !== null &&
     taskFingerprint(task) !== taskFingerprint(run.taskSnapshot);
+  const requestedPermission =
+    run.delegation && run.taskSnapshot
+      ? buildGhostBrokerPermissionRequest({
+          account:
+            wallet.account ??
+            "0x0000000000000000000000000000000000000000",
+          task: run.taskSnapshot,
+          delegation: run.delegation,
+        })
+      : null;
+  const permissionBlueprint = run.taskSnapshot
+    ? getPermissionBlueprint(run.taskSnapshot.payoutToken)
+    : null;
+  const permissionSupport =
+    permissionBlueprint === null
+      ? null
+      : isBlueprintSupported({
+          blueprint: permissionBlueprint,
+          supportedPermissions: wallet.supportedPermissions,
+        });
+  const canRequestPermission =
+    Boolean(run.delegation && run.taskSnapshot && wallet.account) &&
+    Boolean(permissionSupport?.isTypeSupported && permissionSupport.isChainSupported);
 
   return (
     <main className="min-h-screen bg-[var(--surface-0)] text-[var(--ink-strong)]">
@@ -457,7 +714,7 @@ export function GhostBrokerConsole() {
                 04 Delegation plan
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
-                MetaMask-style approval scope
+                MetaMask execution permission
               </h2>
               {!run.delegation ? (
                 <div className="mt-5">
@@ -465,6 +722,53 @@ export function GhostBrokerConsole() {
                 </div>
               ) : (
                 <>
+                  <div className="mt-5 grid gap-3 rounded-[1.5rem] border border-[var(--border-strong)] bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(247,242,235,0.92))] p-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="rounded-full border border-[var(--border)] bg-white px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                        {wallet.isHydrating
+                          ? "Scanning wallet"
+                          : wallet.isMetaMask
+                            ? "MetaMask detected"
+                            : "Wallet check"}
+                      </span>
+                      <span className="rounded-full border border-[var(--border)] bg-white px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                        {wallet.account ? formatAddress(wallet.account) : "No wallet connected"}
+                      </span>
+                      <span className="rounded-full border border-[var(--border)] bg-white px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                        {wallet.chainId ? `Wallet chain ${wallet.chainId}` : "Wallet chain unknown"}
+                      </span>
+                      <span className="rounded-full border border-[var(--border)] bg-white px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                        {permissionBlueprint
+                          ? `${permissionBlueprint.chainName} ${permissionBlueprint.chainId}`
+                          : "Chain pending"}
+                      </span>
+                      <span className="rounded-full border border-[var(--border)] bg-white px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                        {wallet.grantedPermissions.length} grants cached
+                      </span>
+                    </div>
+
+                    {!wallet.isAvailable ? (
+                      <p className="text-sm leading-7 text-[var(--ink-soft)]">
+                        MetaMask is not available in this browser. Open the app in a
+                        MetaMask-enabled browser to request a real ERC-7715 execution
+                        permission.
+                      </p>
+                    ) : (
+                      <div className="grid gap-3 text-sm leading-7 text-[var(--ink-soft)]">
+                        <p>
+                          This step now requests a real wallet permission instead of
+                          flipping a demo boolean. GhostBroker asks MetaMask for a
+                          bounded execution scope tied to the frozen task snapshot.
+                        </p>
+                        {wallet.capabilityError ? (
+                          <div className="rounded-[1.2rem] border border-[var(--accent-gold)] bg-[rgba(240,195,107,0.12)] px-4 py-3">
+                            {wallet.capabilityError}
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+
                   {run.taskSnapshot ? (
                     <div className="mt-5 rounded-[1.25rem] border border-[var(--border)] bg-white px-4 py-3 text-sm leading-7 text-[var(--ink-soft)]">
                       Delegation is scoped to the frozen task snapshot for
@@ -478,15 +782,67 @@ export function GhostBrokerConsole() {
                   <div className="mt-5 grid gap-3 rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-1)] p-4 text-sm">
                     <KeyValue label="Delegate" value={run.delegation.delegate} />
                     <KeyValue
+                      label="Delegate wallet"
+                      value={formatAddress(run.delegation.delegateAddress)}
+                    />
+                    <KeyValue
                       label="Spend cap"
                       value={`${run.delegation.spendCap} ${run.taskSnapshot?.payoutToken ?? task.payoutToken}`}
                     />
-                    <KeyValue label="Chain" value={run.delegation.chain} />
+                    <KeyValue
+                      label="Chain"
+                      value={`${run.delegation.chain} · ${run.delegation.chainId}`}
+                    />
                     <KeyValue
                       label="Expiry"
                       value={`${run.delegation.expiryHours} hours`}
                     />
                   </div>
+
+                  {requestedPermission ? (
+                    <div className="mt-4 rounded-[1.5rem] border border-[var(--border)] bg-white p-4">
+                      <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">
+                        Requested permission
+                      </p>
+                      <div className="mt-3 grid gap-3 text-sm">
+                        <KeyValue
+                          label="Permission type"
+                          value={requestedPermission.permission.type}
+                        />
+                        <KeyValue
+                          label="Delegator"
+                          value={formatAddress(wallet.account)}
+                        />
+                        <KeyValue
+                          label="Adjustment"
+                          value={
+                            requestedPermission.isAdjustmentAllowed
+                              ? "Adjustable"
+                              : "Fixed bounds"
+                          }
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {permissionBlueprint ? (
+                    <div className="mt-4 rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-1)] p-4 text-sm leading-7 text-[var(--ink-soft)]">
+                      <p>
+                        Required wallet capability:
+                        <span className="ml-2 font-medium text-[var(--ink-strong)]">
+                          {permissionBlueprint.permissionType}
+                        </span>
+                      </p>
+                      <p className="mt-2">
+                        Support status:{" "}
+                        {permissionSupport?.isTypeSupported
+                          ? permissionSupport.isChainSupported
+                            ? "available on required chain"
+                            : "type available, chain not reported"
+                          : "not reported by wallet"}
+                      </p>
+                    </div>
+                  ) : null}
 
                   <ListBlock
                     title="Allowed actions"
@@ -498,14 +854,70 @@ export function GhostBrokerConsole() {
                     className={`mt-5 w-full rounded-[1.25rem] px-5 py-4 font-medium transition ${
                       run.approved
                         ? "bg-emerald-600 text-white"
-                        : "bg-[var(--ink-strong)] text-white hover:brightness-110"
+                        : !wallet.isAvailable
+                          ? "cursor-not-allowed bg-zinc-200 text-zinc-500"
+                          : wallet.account && !canRequestPermission
+                          ? "cursor-not-allowed bg-zinc-200 text-zinc-500"
+                          : "bg-[var(--ink-strong)] text-white hover:brightness-110"
                     }`}
-                    disabled={run.approved}
+                    disabled={
+                      run.approved ||
+                      run.approvalPending ||
+                      !wallet.isAvailable ||
+                      (Boolean(wallet.account) && !canRequestPermission)
+                    }
                     onClick={handleApprove}
                     type="button"
                   >
-                    {run.approved ? "Delegation approved" : "Approve bounded delegation"}
+                    {run.approvalPending
+                      ? "Requesting MetaMask permission…"
+                      : run.approved
+                        ? "Execution permission granted"
+                        : wallet.account
+                          ? "Request bounded execution permission"
+                          : "Connect MetaMask to approve"}
                   </button>
+
+                  {run.approvalError ? (
+                    <p className="mt-3 text-sm text-rose-700">{run.approvalError}</p>
+                  ) : null}
+
+                  {wallet.isAvailable && !wallet.account ? (
+                    <button
+                      className="mt-3 w-full rounded-[1.1rem] border border-[var(--border-strong)] bg-white px-4 py-3 text-sm font-medium transition hover:border-[var(--accent-blue)] hover:text-[var(--accent-blue)]"
+                      disabled={wallet.isConnecting}
+                      onClick={handleConnectWallet}
+                      type="button"
+                    >
+                      {wallet.isConnecting ? "Connecting MetaMask…" : "Connect MetaMask"}
+                    </button>
+                  ) : null}
+
+                  {run.grantedPermission ? (
+                    <div className="mt-4 rounded-[1.5rem] border border-emerald-300 bg-emerald-50/70 p-4">
+                      <p className="font-mono text-xs uppercase tracking-[0.16em] text-emerald-800">
+                        Granted context
+                      </p>
+                      <div className="mt-3 grid gap-3 text-sm">
+                        <KeyValue
+                          label="Permission type"
+                          value={run.grantedPermission.permission.type}
+                        />
+                        <KeyValue
+                          label="Context"
+                          value={formatAddress(run.grantedPermission.context)}
+                        />
+                        <KeyValue
+                          label="Delegation manager"
+                          value={formatAddress(run.grantedPermission.delegationManager)}
+                        />
+                        <KeyValue
+                          label="Granted for"
+                          value={formatAddress(run.grantedPermission.to)}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </>
               )}
             </div>
@@ -606,6 +1018,14 @@ export function GhostBrokerConsole() {
       </section>
     </main>
   );
+}
+
+function toErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "The wallet request failed.";
 }
 
 function SelectField<T extends string>({

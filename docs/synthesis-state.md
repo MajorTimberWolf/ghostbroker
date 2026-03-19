@@ -23,7 +23,8 @@
 
 ## Current blockers before publish
 
-- Implement the actual product workflow beyond the landing page.
+- Wire the real Uniswap quote and settlement path.
+- Add at least one additional trust primitive that is genuinely load-bearing (`Self`, `Filecoin`, or both).
 - Add deployed demo URL.
 - Add video URL.
 - Complete self-custody transfer for the ERC-8004 identity.

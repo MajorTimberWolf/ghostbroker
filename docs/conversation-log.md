@@ -13,3 +13,4 @@
 - Replaced the landing page with a working GhostBroker console covering intake, private evaluation, provider ranking, delegated approval, settlement planning, and receipt emission.
 - Moved broker evaluation behind `/api/broker/evaluate`, added frozen task snapshots and evaluation IDs, and made the UI honest about whether inference is real (`venice`) or fallback (`local`).
 - Wired the broker route to Venice's official OpenAI-compatible chat completions API with environment-based fallback to local evaluation.
+- Replaced the cosmetic approval step with a real MetaMask Smart Accounts Kit integration that connects to the wallet, checks ERC-7715 execution-permission support, and requests a bounded GhostBroker execution permission tied to the frozen task snapshot.
