@@ -3,6 +3,7 @@ import { formatUnits } from "viem";
 
 import {
   buildSettlementPlan,
+  isTestnetChainId,
   type CandidateEvaluation,
   type SettlementQuoteResponse,
   type SettlementToken,
@@ -95,8 +96,9 @@ export async function getUniswapSettlementQuote(args: {
   candidate: CandidateEvaluation;
   swapper: Address | null;
   task: TaskForm;
+  walletChainId?: number | null;
 }): Promise<SettlementQuoteResponse> {
-  const { candidate, swapper, task } = args;
+  const { candidate, swapper, task, walletChainId = null } = args;
   const localPlan = buildSettlementPlan(task, candidate);
 
   if (!swapper) {
@@ -105,6 +107,16 @@ export async function getUniswapSettlementQuote(args: {
       providerUsed: "local",
       diagnostics: buildQuoteDiagnostics(
         "Connect MetaMask to upgrade the settlement panel from a local plan to a live Uniswap quote.",
+      ),
+    };
+  }
+
+  if (isTestnetChainId(walletChainId)) {
+    return {
+      settlementPlan: localPlan,
+      providerUsed: "local",
+      diagnostics: buildQuoteDiagnostics(
+        "Connected wallet is on a testnet. The live Uniswap Trade API quote path is currently mainnet only.",
       ),
     };
   }

@@ -116,6 +116,31 @@ export const defaultTask: TaskForm = {
   requiresAutonomy: true,
 };
 
+const TESTNET_CHAIN_IDS = new Set([84532, 44787, 11155111]);
+
+export function isTestnetChainId(chainId: number | null) {
+  return chainId !== null && TESTNET_CHAIN_IDS.has(chainId);
+}
+
+export function getSettlementChain(
+  token: SettlementToken,
+  walletChainId: number | null = null,
+) {
+  const isTestnet = isTestnetChainId(walletChainId);
+
+  if (token === "cUSD") {
+    return {
+      chain: isTestnet ? "Celo Alfajores" : "Celo",
+      chainId: isTestnet ? 44787 : 42220,
+    };
+  }
+
+  return {
+    chain: isTestnet ? "Base Sepolia" : "Base",
+    chainId: isTestnet ? 84532 : 8453,
+  };
+}
+
 export const agents: AgentProfile[] = [
   {
     id: "venice-risk-desk",
@@ -313,15 +338,17 @@ export function evaluateCandidates(task: TaskForm) {
 export function buildDelegationPlan(
   task: TaskForm,
   candidate: CandidateEvaluation,
+  walletChainId: number | null = null,
 ) {
   const spendCap = Math.round(task.budget * 0.88);
+  const settlementChain = getSettlementChain(task.payoutToken, walletChainId);
 
   return {
     delegate: candidate.agent.ens,
     delegateAddress: candidate.agent.delegateAddress,
     spendCap,
-    chain: task.payoutToken === "cUSD" ? "Celo" : "Base",
-    chainId: task.payoutToken === "cUSD" ? 42220 : 8453,
+    chain: settlementChain.chain,
+    chainId: settlementChain.chainId,
     expiryHours: task.urgency === "today" ? 8 : task.urgency === "48h" ? 24 : 72,
     permissions: [
       "Request quote from approved settlement rail",

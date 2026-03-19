@@ -6,6 +6,7 @@ import { getUniswapSettlementQuote } from "@/lib/uniswap";
 type QuoteRequestBody = {
   agentId?: string;
   evaluationId?: string;
+  chainId?: number | null;
   swapper?: string | null;
 };
 
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
         ? (body.swapper as `0x${string}`)
         : null,
     task: evaluation.taskSnapshot,
+    walletChainId: typeof body.chainId === "number" ? body.chainId : null,
   });
 
   return NextResponse.json(quote);

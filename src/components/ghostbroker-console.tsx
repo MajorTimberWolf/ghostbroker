@@ -142,6 +142,21 @@ function receiptTone(providerUsed: ReceiptProvider | null) {
   return "border-amber-300 bg-amber-50 text-amber-900";
 }
 
+async function loadExecutionPermissionsWithRetry() {
+  try {
+    return await loadMetaMaskExecutionPermissions();
+  } catch (error) {
+    const message = toErrorMessage(error);
+
+    if (!message.includes("already being processed")) {
+      throw error;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return loadMetaMaskExecutionPermissions();
+  }
+}
+
 export function GhostBrokerConsole() {
   const [task, setTask] = useState<TaskForm>(defaultTask);
   const [run, setRun] = useState<RunState>(initialRunState);
@@ -170,7 +185,7 @@ export function GhostBrokerConsole() {
         let capabilityError: string | null = null;
 
         try {
-          const permissions = await loadMetaMaskExecutionPermissions();
+          const permissions = await loadExecutionPermissionsWithRetry();
           supportedPermissions = permissions.supportedPermissions;
           grantedPermissions = permissions.grantedPermissions;
         } catch (error) {
@@ -299,7 +314,7 @@ export function GhostBrokerConsole() {
     setRun((current) => ({
       ...current,
       selected: candidate,
-      delegation: buildDelegationPlan(taskSnapshot, candidate),
+      delegation: buildDelegationPlan(taskSnapshot, candidate, wallet.chainId),
       settlement: buildSettlementPlan(taskSnapshot, candidate),
       receipt: null,
       approved: false,
@@ -342,6 +357,7 @@ export function GhostBrokerConsole() {
           body: JSON.stringify({
             evaluationId: run.evaluationId,
             agentId: selectedAgentId,
+            chainId: wallet.chainId,
             swapper: wallet.account,
           }),
         });
@@ -394,7 +410,28 @@ export function GhostBrokerConsole() {
     return () => {
       isActive = false;
     };
-  }, [run.selected, run.taskSnapshot, run.evaluationId, wallet.account]);
+  }, [run.selected, run.taskSnapshot, run.evaluationId, wallet.account, wallet.chainId]);
+
+  useEffect(() => {
+    if (!run.selected || !run.taskSnapshot) {
+      return;
+    }
+
+    setRun((current) => {
+      if (!current.selected || !current.taskSnapshot) {
+        return current;
+      }
+
+      return {
+        ...current,
+        delegation: buildDelegationPlan(
+          current.taskSnapshot,
+          current.selected,
+          wallet.chainId,
+        ),
+      };
+    });
+  }, [wallet.chainId, run.selected, run.taskSnapshot]);
 
   async function handleConnectWallet() {
     setWallet((current) => ({
@@ -410,7 +447,7 @@ export function GhostBrokerConsole() {
       let capabilityError: string | null = null;
 
       try {
-        const permissions = await loadMetaMaskExecutionPermissions();
+        const permissions = await loadExecutionPermissionsWithRetry();
         supportedPermissions = permissions.supportedPermissions;
         grantedPermissions = permissions.grantedPermissions;
       } catch (error) {
@@ -445,7 +482,7 @@ export function GhostBrokerConsole() {
       return;
     }
 
-    const blueprint = getPermissionBlueprint(run.taskSnapshot.payoutToken);
+    const blueprint = getPermissionBlueprint(run.taskSnapshot.payoutToken, wallet.chainId);
     const supportState = isBlueprintSupported({
       blueprint,
       supportedPermissions: wallet.supportedPermissions,
@@ -471,8 +508,9 @@ export function GhostBrokerConsole() {
         account: wallet.account,
         task: run.taskSnapshot,
         delegation: run.delegation,
+        walletChainId: wallet.chainId,
       });
-      const permissions = await loadMetaMaskExecutionPermissions();
+      const permissions = await loadExecutionPermissionsWithRetry();
 
       setWallet((current) => ({
         ...current,
@@ -579,10 +617,11 @@ export function GhostBrokerConsole() {
             "0x0000000000000000000000000000000000000000",
           task: run.taskSnapshot,
           delegation: run.delegation,
+          walletChainId: wallet.chainId,
         })
       : null;
   const permissionBlueprint = run.taskSnapshot
-    ? getPermissionBlueprint(run.taskSnapshot.payoutToken)
+    ? getPermissionBlueprint(run.taskSnapshot.payoutToken, wallet.chainId)
     : null;
   const permissionSupport =
     permissionBlueprint === null
@@ -967,7 +1006,7 @@ export function GhostBrokerConsole() {
                     />
                     <KeyValue
                       label="Chain"
-                      value={`${run.delegation.chain} · ${run.delegation.chainId}`}
+                      value={`${permissionBlueprint?.chainName ?? run.delegation.chain} · ${permissionBlueprint?.chainId ?? run.delegation.chainId}`}
                     />
                     <KeyValue
                       label="Expiry"

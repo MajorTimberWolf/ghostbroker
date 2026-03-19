@@ -7,7 +7,12 @@ import type {
 } from "@metamask/smart-accounts-kit/actions";
 import type { Address } from "viem";
 
-import type { DelegationPlan, SettlementToken, TaskForm } from "@/lib/ghostbroker";
+import {
+  isTestnetChainId,
+  type DelegationPlan,
+  type SettlementToken,
+  type TaskForm,
+} from "@/lib/ghostbroker";
 
 declare global {
   interface Window {
@@ -36,7 +41,7 @@ export type PermissionBlueprint = {
   decimals: number;
 };
 
-const permissionBlueprints: Record<SettlementToken, PermissionBlueprint> = {
+const mainnetBlueprints: Record<SettlementToken, PermissionBlueprint> = {
   USDC: {
     chainId: 8453,
     chainName: "Base",
@@ -62,6 +67,32 @@ const permissionBlueprints: Record<SettlementToken, PermissionBlueprint> = {
   },
 };
 
+const testnetBlueprints: Record<SettlementToken, PermissionBlueprint> = {
+  USDC: {
+    chainId: 84532,
+    chainName: "Base Sepolia",
+    permissionType: "erc20-token-periodic",
+    tokenLabel: "USDC",
+    tokenAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    decimals: 6,
+  },
+  ETH: {
+    chainId: 84532,
+    chainName: "Base Sepolia",
+    permissionType: "native-token-periodic",
+    tokenLabel: "ETH",
+    decimals: 18,
+  },
+  cUSD: {
+    chainId: 44787,
+    chainName: "Celo Alfajores",
+    permissionType: "erc20-token-periodic",
+    tokenLabel: "cUSD",
+    tokenAddress: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
+    decimals: 18,
+  },
+};
+
 export function getMetaMaskProvider() {
   if (typeof window === "undefined") {
     return null;
@@ -70,8 +101,11 @@ export function getMetaMaskProvider() {
   return window.ethereum ?? null;
 }
 
-export function getPermissionBlueprint(token: SettlementToken) {
-  return permissionBlueprints[token];
+export function getPermissionBlueprint(
+  token: SettlementToken,
+  walletChainId: number | null = null,
+) {
+  return (isTestnetChainId(walletChainId) ? testnetBlueprints : mainnetBlueprints)[token];
 }
 
 function toIntegerUnits(amount: number, decimals: number) {
@@ -179,9 +213,10 @@ export function buildGhostBrokerPermissionRequest(args: {
   account: Address;
   task: TaskForm;
   delegation: DelegationPlan;
+  walletChainId?: number | null;
 }) {
-  const { account, task, delegation } = args;
-  const blueprint = getPermissionBlueprint(task.payoutToken);
+  const { account, task, delegation, walletChainId = null } = args;
+  const blueprint = getPermissionBlueprint(task.payoutToken, walletChainId);
   const startTime = Math.floor(Date.now() / 1000);
   const expiry = toTimestampHours(delegation.expiryHours);
   const justification = `GhostBroker scoped delegation for ${task.title}. Cap ${delegation.spendCap} ${task.payoutToken}; delegate ${delegation.delegate}.`;
@@ -228,6 +263,7 @@ export async function requestGhostBrokerExecutionPermission(args: {
   account: Address;
   task: TaskForm;
   delegation: DelegationPlan;
+  walletChainId?: number | null;
 }) {
   const provider = getMetaMaskProvider();
   if (!provider) {
