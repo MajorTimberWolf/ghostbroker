@@ -3,7 +3,7 @@
   "name": "GhostBroker",
   "description": "GhostBroker is an agent procurement layer that privately evaluates specialist agents, routes constrained approvals, and settles paid work onchain with durable receipts.",
   "problemStatement": "Humans and agents increasingly need help from other agents, but the current workflow is unsafe and incoherent. Sensitive requirements get sprayed across tools, users hand over too much wallet authority, and successful work is hard to verify or settle cleanly. GhostBroker makes paid agent coordination trustworthy by combining private evaluation, delegated execution, and onchain settlement.",
-  "repoURL": "REPLACE_WITH_PUBLIC_GITHUB_REPO",
+  "repoURL": "https://github.com/MajorTimberWolf/ghostbroker",
   "trackUUIDs": [
     "ea3b366947c54689bd82ae80bf9f3310",
     "0d69d56a8a084ac5b7dbe0dc1da73e1d",
