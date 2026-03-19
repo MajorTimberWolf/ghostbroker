@@ -24,13 +24,15 @@
     "agentHarnessOther": "codex desktop",
     "model": "gpt-5",
     "skills": [
-      "brainstorming-research-ideas"
+      "brainstorming-research-ideas",
+      "frontend-design"
     ],
     "tools": [
       "Next.js",
       "TypeScript",
       "Tailwind CSS",
-      "Synthesis API"
+      "Synthesis API",
+      "Venice API"
     ],
     "helpfulResources": [
       "https://synthesis.md/",
@@ -38,12 +40,18 @@
       "https://synthesis.md/skill.md",
       "https://synthesis.md/submission/skill.md",
       "https://synthesis.devfolio.co/catalog?page=1&limit=50",
-      "https://synthesis.devfolio.co/catalog/open_track"
+      "https://synthesis.devfolio.co/catalog/open_track",
+      "https://docs.venice.ai/welcome/getting-started",
+      "https://docs.venice.ai/api-reference/endpoint/chat/completions"
     ],
     "helpfulSkills": [
       {
         "name": "brainstorming-research-ideas",
         "reason": "Helped force the project into a coherent trust-payment-coordination wedge instead of a loose sponsor bundle."
+      },
+      {
+        "name": "frontend-design",
+        "reason": "Helped keep the broker console visually intentional while converting the landing page into a workflow-first interface."
       }
     ],
     "intention": "continuing",
