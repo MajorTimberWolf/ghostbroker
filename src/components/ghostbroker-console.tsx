@@ -4,14 +4,15 @@ import { useState } from "react";
 
 import {
   buildDelegationPlan,
-  buildPrivateMemo,
   buildReceipt,
   buildSettlementPlan,
   defaultTask,
-  evaluateCandidates,
+  taskFingerprint,
+  type BrokerEvaluationResponse,
   type CandidateEvaluation,
   type Confidentiality,
   type DelegationPlan,
+  type EvaluationProvider,
   type Receipt,
   type SettlementPlan,
   type TaskForm,
@@ -27,6 +28,11 @@ type RunState = {
   receipt: Receipt | null;
   approved: boolean;
   settled: boolean;
+  evaluationId: string | null;
+  taskSnapshot: TaskForm | null;
+  providerUsed: EvaluationProvider | null;
+  isLoading: boolean;
+  error: string | null;
 };
 
 const initialRunState: RunState = {
@@ -38,6 +44,11 @@ const initialRunState: RunState = {
   receipt: null,
   approved: false,
   settled: false,
+  evaluationId: null,
+  taskSnapshot: null,
+  providerUsed: null,
+  isLoading: false,
+  error: null,
 };
 
 const verdictTone = {
@@ -50,6 +61,14 @@ function sectionCardClasses(tall = false) {
   return `rounded-[1.75rem] border border-[var(--border-strong)] bg-[rgba(255,252,248,0.9)] p-5 shadow-[0_18px_45px_rgba(42,28,18,0.06)] ${tall ? "h-full" : ""}`;
 }
 
+function providerTone(providerUsed: EvaluationProvider | null) {
+  if (providerUsed === "venice") {
+    return "border-emerald-300 bg-emerald-50 text-emerald-900";
+  }
+
+  return "border-amber-300 bg-amber-50 text-amber-900";
+}
+
 export function GhostBrokerConsole() {
   const [task, setTask] = useState<TaskForm>(defaultTask);
   const [run, setRun] = useState<RunState>(initialRunState);
@@ -58,26 +77,59 @@ export function GhostBrokerConsole() {
     setTask((current) => ({ ...current, [key]: value }));
   }
 
-  function handleEvaluate() {
-    const candidates = evaluateCandidates(task);
+  async function handleEvaluate() {
+    setRun((current) => ({
+      ...current,
+      isLoading: true,
+      error: null,
+    }));
+
+    const response = await fetch("/api/broker/evaluate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(task),
+    });
+
+    if (!response.ok) {
+      setRun((current) => ({
+        ...current,
+        isLoading: false,
+        error: "Broker evaluation failed. Retry the request.",
+      }));
+      return;
+    }
+
+    const payload = (await response.json()) as BrokerEvaluationResponse;
+
     setRun({
-      memo: buildPrivateMemo(task),
-      candidates,
+      memo: payload.memo,
+      candidates: payload.candidates,
       selected: null,
       delegation: null,
       settlement: null,
       receipt: null,
       approved: false,
       settled: false,
+      evaluationId: payload.evaluationId,
+      taskSnapshot: payload.taskSnapshot,
+      providerUsed: payload.providerUsed,
+      isLoading: false,
+      error: null,
     });
   }
 
   function handleSelect(candidate: CandidateEvaluation) {
+    if (!run.taskSnapshot) return;
+
+    const taskSnapshot = run.taskSnapshot;
+
     setRun((current) => ({
       ...current,
       selected: candidate,
-      delegation: buildDelegationPlan(task, candidate),
-      settlement: buildSettlementPlan(task, candidate),
+      delegation: buildDelegationPlan(taskSnapshot, candidate),
+      settlement: buildSettlementPlan(taskSnapshot, candidate),
       receipt: null,
       approved: false,
       settled: false,
@@ -92,15 +144,16 @@ export function GhostBrokerConsole() {
   }
 
   function handleSettle() {
-    if (!run.selected || !run.settlement) return;
+    if (!run.selected || !run.settlement || !run.taskSnapshot) return;
 
     const selected = run.selected;
     const settlement = run.settlement;
+    const taskSnapshot = run.taskSnapshot;
 
     setRun((current) => ({
       ...current,
       settled: true,
-      receipt: buildReceipt(task, selected, settlement),
+      receipt: buildReceipt(taskSnapshot, selected, settlement),
     }));
   }
 
@@ -108,6 +161,10 @@ export function GhostBrokerConsole() {
     setTask(defaultTask);
     setRun(initialRunState);
   }
+
+  const hasTaskDrift =
+    run.taskSnapshot !== null &&
+    taskFingerprint(task) !== taskFingerprint(run.taskSnapshot);
 
   return (
     <main className="min-h-screen bg-[var(--surface-0)] text-[var(--ink-strong)]">
@@ -261,8 +318,21 @@ export function GhostBrokerConsole() {
               onClick={handleEvaluate}
               type="button"
             >
-              Run private evaluation
+              {run.isLoading ? "Evaluating…" : "Run private evaluation"}
             </button>
+
+            {run.error ? (
+              <p className="mt-3 text-sm text-rose-700">{run.error}</p>
+            ) : null}
+
+            {hasTaskDrift ? (
+              <div className="mt-4 rounded-[1.3rem] border border-[var(--accent-gold)] bg-[rgba(240,195,107,0.15)] px-4 py-3 text-sm leading-7 text-[var(--ink-soft)]">
+                The form has changed since the last evaluation. Downstream steps
+                are still tied to evaluation{" "}
+                <span className="font-mono">{run.evaluationId}</span>. Re-run the
+                broker when you want a fresh ranking.
+              </div>
+            ) : null}
           </div>
 
           <div className={sectionCardClasses()}>
@@ -272,13 +342,21 @@ export function GhostBrokerConsole() {
             <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
               Redacted broker reasoning
             </h2>
+            {run.providerUsed ? (
+              <div
+                className={`mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] ${providerTone(run.providerUsed)}`}
+              >
+                <span>Provider</span>
+                <span>{run.providerUsed}</span>
+              </div>
+            ) : null}
             <div className="mt-5 grid gap-3">
               {run.memo.length === 0 ? (
                 <EmptyState text="No private evaluation yet. Run the broker on the task profile to generate the internal memo." />
               ) : (
-                run.memo.map((item) => (
+                run.memo.map((item, index) => (
                   <div
-                    key={item}
+                    key={`memo-${index}`}
                     className="rounded-[1.3rem] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm leading-7 text-[var(--ink-soft)]"
                   >
                     {item}
@@ -348,8 +426,10 @@ export function GhostBrokerConsole() {
                       </div>
 
                       <ul className="mt-4 space-y-2 text-sm leading-7 text-[var(--ink-soft)]">
-                        {candidate.rationales.map((reason) => (
-                          <li key={reason}>{reason}</li>
+                        {candidate.rationales.map((reason, reasonIndex) => (
+                          <li key={`${candidate.agent.id}-reason-${reasonIndex}`}>
+                            {reason}
+                          </li>
                         ))}
                       </ul>
 
@@ -385,11 +465,21 @@ export function GhostBrokerConsole() {
                 </div>
               ) : (
                 <>
+                  {run.taskSnapshot ? (
+                    <div className="mt-5 rounded-[1.25rem] border border-[var(--border)] bg-white px-4 py-3 text-sm leading-7 text-[var(--ink-soft)]">
+                      Delegation is scoped to the frozen task snapshot for
+                      <span className="ml-2 font-medium text-[var(--ink-strong)]">
+                        {run.taskSnapshot.title}
+                      </span>
+                      .
+                    </div>
+                  ) : null}
+
                   <div className="mt-5 grid gap-3 rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-1)] p-4 text-sm">
                     <KeyValue label="Delegate" value={run.delegation.delegate} />
                     <KeyValue
                       label="Spend cap"
-                      value={`${run.delegation.spendCap} ${task.payoutToken}`}
+                      value={`${run.delegation.spendCap} ${run.taskSnapshot?.payoutToken ?? task.payoutToken}`}
                     />
                     <KeyValue label="Chain" value={run.delegation.chain} />
                     <KeyValue
@@ -595,8 +685,8 @@ function ListBlock({ title, items }: { title: string; items: string[] }) {
         {title}
       </p>
       <ul className="mt-3 space-y-2 text-sm leading-7 text-[var(--ink-soft)]">
-        {items.map((item) => (
-          <li key={item}>{item}</li>
+        {items.map((item, index) => (
+          <li key={`${title}-${index}`}>{item}</li>
         ))}
       </ul>
     </div>

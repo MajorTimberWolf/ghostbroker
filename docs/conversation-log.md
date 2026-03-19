@@ -11,3 +11,4 @@
 - Published the repository to `https://github.com/MajorTimberWolf/ghostbroker`.
 - Created the live Synthesis draft project `GhostBroker` with the repo attached and the initial track set in place.
 - Replaced the landing page with a working GhostBroker console covering intake, private evaluation, provider ranking, delegated approval, settlement planning, and receipt emission.
+- Moved broker evaluation behind `/api/broker/evaluate`, added frozen task snapshots and evaluation IDs, and made the UI honest about whether inference is real (`venice`) or fallback (`local`).

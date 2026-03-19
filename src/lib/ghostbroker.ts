@@ -38,6 +38,16 @@ export type CandidateEvaluation = {
   rationales: string[];
 };
 
+export type EvaluationProvider = "venice" | "local";
+
+export type BrokerEvaluationResponse = {
+  taskSnapshot: TaskForm;
+  memo: string[];
+  candidates: CandidateEvaluation[];
+  evaluationId: string;
+  providerUsed: EvaluationProvider;
+};
+
 export type DelegationPlan = {
   delegate: string;
   spendCap: number;
@@ -107,7 +117,7 @@ export const agents: AgentProfile[] = [
     summary:
       "Execution-focused agent for swaps, routing, and payout settlement across supported rails.",
     feeRate: 0.15,
-      privacyScore: 5,
+    privacyScore: 5,
     delegationScore: 8,
     settlementScore: 10,
     autonomyScore: 7,
@@ -158,6 +168,14 @@ function urgencyWeight(urgency: Urgency) {
   return 0.8;
 }
 
+export function cloneTask(task: TaskForm): TaskForm {
+  return { ...task };
+}
+
+export function taskFingerprint(task: TaskForm) {
+  return JSON.stringify(task);
+}
+
 export function buildPrivateMemo(task: TaskForm) {
   const memo = [
     `Classify request as ${task.confidentiality} and restrict provider disclosure to minimum viable context.`,
@@ -165,22 +183,28 @@ export function buildPrivateMemo(task: TaskForm) {
   ];
 
   if (task.requiresHumanIdentity) {
-    memo.push("Prioritize providers with stronger operator identity and human-backed verification.");
+    memo.push(
+      "Prioritize providers with stronger operator identity and human-backed verification.",
+    );
   }
 
   if (task.requiresPersistentReceipts) {
-    memo.push("Require durable receipts suitable for later reputation updates and audit trails.");
+    memo.push(
+      "Require durable receipts suitable for later reputation updates and audit trails.",
+    );
   }
 
   if (task.requiresAutonomy) {
-    memo.push("Favor providers capable of completing execution without repeated human intervention.");
+    memo.push(
+      "Favor providers capable of completing execution without repeated human intervention.",
+    );
   }
 
   return memo;
 }
 
 export function evaluateCandidates(task: TaskForm) {
-  const ranked = agents
+  return agents
     .map((agent) => {
       let score = 0;
       const rationales: string[] = [];
@@ -205,30 +229,40 @@ export function evaluateCandidates(task: TaskForm) {
         score += 6;
         rationales.push(`Supports native payout in ${task.payoutToken}.`);
       } else {
-        rationales.push(`Needs token routing before final payout.`);
+        rationales.push("Needs token routing before final payout.");
       }
 
       const effectiveFee = Math.round(task.budget * agent.feeRate);
       if (effectiveFee < task.budget * 0.2) {
         score += 4;
-        rationales.push(`Fee model leaves room for execution reserve (${effectiveFee} ${task.payoutToken}).`);
+        rationales.push(
+          `Fee model leaves room for execution reserve (${effectiveFee} ${task.payoutToken}).`,
+        );
       } else {
-        rationales.push(`Higher fee profile may constrain downstream execution budget.`);
+        rationales.push(
+          "Higher fee profile may constrain downstream execution budget.",
+        );
       }
 
       if (task.confidentiality === "sealed" && agent.privacyScore >= 8) {
         score += 8;
-        rationales.push("Strong fit for private cognition and restricted disclosure.");
+        rationales.push(
+          "Strong fit for private cognition and restricted disclosure.",
+        );
       }
 
       if (task.requiresPersistentReceipts && agent.receiptsScore >= 8) {
         score += 6;
-        rationales.push("Capable of generating durable receipt and provenance artifacts.");
+        rationales.push(
+          "Capable of generating durable receipt and provenance artifacts.",
+        );
       }
 
       if (task.requiresAutonomy && agent.autonomyScore >= 8) {
         score += 5;
-        rationales.push("Can complete the workflow with limited human follow-ups.");
+        rationales.push(
+          "Can complete the workflow with limited human follow-ups.",
+        );
       }
 
       score *= urgencyWeight(task.urgency);
@@ -245,11 +279,12 @@ export function evaluateCandidates(task: TaskForm) {
       } satisfies CandidateEvaluation;
     })
     .sort((left, right) => right.score - left.score);
-
-  return ranked;
 }
 
-export function buildDelegationPlan(task: TaskForm, candidate: CandidateEvaluation) {
+export function buildDelegationPlan(
+  task: TaskForm,
+  candidate: CandidateEvaluation,
+) {
   const spendCap = Math.round(task.budget * 0.88);
 
   return {
@@ -270,7 +305,10 @@ export function buildDelegationPlan(task: TaskForm, candidate: CandidateEvaluati
   } satisfies DelegationPlan;
 }
 
-export function buildSettlementPlan(task: TaskForm, candidate: CandidateEvaluation) {
+export function buildSettlementPlan(
+  task: TaskForm,
+  candidate: CandidateEvaluation,
+) {
   const brokerFee = Math.round(task.budget * candidate.agent.feeRate);
   const reserve = Math.round(task.budget * 0.12);
   const quoteAmount = task.budget - brokerFee - reserve;
@@ -295,15 +333,19 @@ export function buildSettlementPlan(task: TaskForm, candidate: CandidateEvaluati
   } satisfies SettlementPlan;
 }
 
-export function buildReceipt(task: TaskForm, candidate: CandidateEvaluation, settlement: SettlementPlan) {
-  const suffix = Math.random().toString(16).slice(2, 8);
+export function buildReceipt(
+  task: TaskForm,
+  candidate: CandidateEvaluation,
+  settlement: SettlementPlan,
+) {
+  const receiptId = crypto.randomUUID();
 
   return {
-    id: `gbr-${suffix}`,
+    id: receiptId,
     providerEns: candidate.agent.ens,
     amount: settlement.quoteAmount,
     token: settlement.payoutToken,
-    receiptAnchor: `filecoin://ghostbroker/${candidate.agent.id}/${suffix}`,
+    receiptAnchor: `filecoin://ghostbroker/${candidate.agent.id}/${receiptId}`,
     storagePlan:
       "Persist settlement details, delegation scope, and execution summary as a durable receipt bundle.",
     trustUpdate:
