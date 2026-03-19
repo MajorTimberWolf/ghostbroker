@@ -1,0 +1,52 @@
+{
+  "teamUUID": "215eaa69fb184bc7911887aeb33ccc90",
+  "name": "GhostBroker",
+  "description": "GhostBroker is an agent procurement layer that privately evaluates specialist agents, routes constrained approvals, and settles paid work onchain with durable receipts.",
+  "problemStatement": "Humans and agents increasingly need help from other agents, but the current workflow is unsafe and incoherent. Sensitive requirements get sprayed across tools, users hand over too much wallet authority, and successful work is hard to verify or settle cleanly. GhostBroker makes paid agent coordination trustworthy by combining private evaluation, delegated execution, and onchain settlement.",
+  "repoURL": "REPLACE_WITH_PUBLIC_GITHUB_REPO",
+  "trackUUIDs": [
+    "ea3b366947c54689bd82ae80bf9f3310",
+    "0d69d56a8a084ac5b7dbe0dc1da73e1d",
+    "020214c160fc43339dd9833733791e6b",
+    "9bd8b3fde4d0458698d618daf496d1c7",
+    "6f0e3d7dcadf4ef080d3f424963caff5",
+    "3bf41be958da497bbb69f1a150c76af9",
+    "10bd47fac07e4f85bda33ba482695b24",
+    "437781b864994698b2a304227e277b56",
+    "49a19e54cdde48a6a22bd7604d07292e",
+    "627a3f5a288344489fe777212b03f953"
+  ],
+  "conversationLog": "See docs/conversation-log.md in the repository for the evolving human-agent collaboration log.",
+  "submissionMetadata": {
+    "agentFramework": "other",
+    "agentFrameworkOther": "custom Next.js and TypeScript application",
+    "agentHarness": "other",
+    "agentHarnessOther": "codex desktop",
+    "model": "gpt-5",
+    "skills": [
+      "brainstorming-research-ideas"
+    ],
+    "tools": [
+      "Next.js",
+      "TypeScript",
+      "Tailwind CSS",
+      "Synthesis API"
+    ],
+    "helpfulResources": [
+      "https://synthesis.md/",
+      "https://synthesis.md/hack/",
+      "https://synthesis.md/skill.md",
+      "https://synthesis.md/submission/skill.md",
+      "https://synthesis.devfolio.co/catalog?page=1&limit=50",
+      "https://synthesis.devfolio.co/catalog/open_track"
+    ],
+    "helpfulSkills": [
+      {
+        "name": "brainstorming-research-ideas",
+        "reason": "Helped force the project into a coherent trust-payment-coordination wedge instead of a loose sponsor bundle."
+      }
+    ],
+    "intention": "continuing",
+    "intentionNotes": "The goal is to keep building GhostBroker into a real agent procurement and settlement product after the hackathon."
+  }
+}
