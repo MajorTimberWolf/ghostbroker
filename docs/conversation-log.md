@@ -10,3 +10,4 @@
 - Revised track prioritization to make Venice the anchor, with MetaMask and Uniswap as first-class product primitives instead of secondary integrations.
 - Published the repository to `https://github.com/MajorTimberWolf/ghostbroker`.
 - Created the live Synthesis draft project `GhostBroker` with the repo attached and the initial track set in place.
+- Replaced the landing page with a working GhostBroker console covering intake, private evaluation, provider ranking, delegated approval, settlement planning, and receipt emission.
