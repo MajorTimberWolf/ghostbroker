@@ -20,6 +20,8 @@ import {
   type EvaluationProvider,
   type Receipt,
   type SettlementPlan,
+  type SettlementProvider,
+  type SettlementQuoteResponse,
   type TaskForm,
   type Urgency,
 } from "@/lib/ghostbroker";
@@ -47,11 +49,15 @@ type RunState = {
   evaluationId: string | null;
   taskSnapshot: TaskForm | null;
   providerUsed: EvaluationProvider | null;
+  settlementProviderUsed: SettlementProvider | null;
   isLoading: boolean;
   error: string | null;
   approvalPending: boolean;
   approvalError: string | null;
   grantedPermission: GetGrantedExecutionPermissionsResult[number] | null;
+  settlementPending: boolean;
+  settlementError: string | null;
+  settlementDiagnostics: string[];
 };
 
 const initialRunState: RunState = {
@@ -66,11 +72,15 @@ const initialRunState: RunState = {
   evaluationId: null,
   taskSnapshot: null,
   providerUsed: null,
+  settlementProviderUsed: null,
   isLoading: false,
   error: null,
   approvalPending: false,
   approvalError: null,
   grantedPermission: null,
+  settlementPending: false,
+  settlementError: null,
+  settlementDiagnostics: [],
 };
 
 type WalletState = {
@@ -248,11 +258,15 @@ export function GhostBrokerConsole() {
       evaluationId: payload.evaluationId,
       taskSnapshot: payload.taskSnapshot,
       providerUsed: payload.providerUsed,
+      settlementProviderUsed: null,
       isLoading: false,
       error: null,
       approvalPending: false,
       approvalError: null,
       grantedPermission: null,
+      settlementPending: false,
+      settlementError: null,
+      settlementDiagnostics: [],
     });
   }
 
@@ -269,11 +283,93 @@ export function GhostBrokerConsole() {
       receipt: null,
       approved: false,
       settled: false,
+      settlementProviderUsed: null,
       approvalPending: false,
       approvalError: null,
       grantedPermission: null,
+      settlementPending: true,
+      settlementError: null,
+      settlementDiagnostics: [],
     }));
   }
+
+  useEffect(() => {
+    if (!run.selected || !run.taskSnapshot || !run.evaluationId) {
+      return;
+    }
+
+    let isActive = true;
+    const selectedAgentId = run.selected.agent.id;
+
+    async function refreshSettlementQuote() {
+      setRun((current) => ({
+        ...current,
+        settlementPending: true,
+        settlementError: null,
+      }));
+
+      try {
+        const response = await fetch("/api/broker/quote", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            evaluationId: run.evaluationId,
+            agentId: selectedAgentId,
+            swapper: wallet.account,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorPayload = (await response.json()) as { error?: string };
+
+          if (!isActive) return;
+
+          setRun((current) => ({
+            ...current,
+            settlementPending: false,
+            settlementError:
+              errorPayload.error ?? "Uniswap quote refresh failed unexpectedly.",
+          }));
+          return;
+        }
+
+        const payload = (await response.json()) as SettlementQuoteResponse;
+
+        if (!isActive) return;
+
+        setRun((current) => {
+          if (current.selected?.agent.id !== selectedAgentId) {
+            return current;
+          }
+
+          return {
+            ...current,
+            settlement: payload.settlementPlan,
+            settlementProviderUsed: payload.providerUsed,
+            settlementPending: false,
+            settlementError: null,
+            settlementDiagnostics: payload.diagnostics,
+          };
+        });
+      } catch (error) {
+        if (!isActive) return;
+
+        setRun((current) => ({
+          ...current,
+          settlementPending: false,
+          settlementError: toErrorMessage(error),
+        }));
+      }
+    }
+
+    void refreshSettlementQuote();
+
+    return () => {
+      isActive = false;
+    };
+  }, [run.selected, run.taskSnapshot, run.evaluationId, wallet.account]);
 
   async function handleConnectWallet() {
     setWallet((current) => ({
@@ -935,6 +1031,19 @@ export function GhostBrokerConsole() {
                 </div>
               ) : (
                 <>
+                  {run.settlementProviderUsed ? (
+                    <div
+                      className={`mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] ${
+                        run.settlementProviderUsed === "uniswap"
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                          : "border-amber-300 bg-amber-50 text-amber-900"
+                      }`}
+                    >
+                      <span>Quote provider</span>
+                      <span>{run.settlementProviderUsed}</span>
+                    </div>
+                  ) : null}
+
                   <div className="mt-5 rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-1)] p-4">
                     <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">
                       Route
@@ -958,7 +1067,43 @@ export function GhostBrokerConsole() {
                       label="Safety reserve"
                       value={`${run.settlement.reserve} ${run.settlement.fundingToken}`}
                     />
+                    {run.settlement.requestId ? (
+                      <KeyValue label="Request ID" value={run.settlement.requestId} />
+                    ) : null}
+                    {run.settlement.routing ? (
+                      <KeyValue label="Routing" value={run.settlement.routing} />
+                    ) : null}
+                    {run.settlement.gasEstimateUSD ? (
+                      <KeyValue
+                        label="Est. gas"
+                        value={`$${run.settlement.gasEstimateUSD}`}
+                      />
+                    ) : null}
                   </div>
+
+                  {run.settlementDiagnostics.length > 0 ? (
+                    <div className="mt-4 rounded-[1.5rem] border border-[var(--border)] bg-white p-4">
+                      <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">
+                        Quote diagnostics
+                      </p>
+                      <ul className="mt-3 space-y-2 text-sm leading-7 text-[var(--ink-soft)]">
+                        {run.settlementDiagnostics.map((message, index) => (
+                          <li key={`settlement-diagnostic-${index}`}>{message}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {run.settlementError ? (
+                    <p className="mt-4 text-sm text-rose-700">{run.settlementError}</p>
+                  ) : null}
+
+                  {run.settlementPending ? (
+                    <p className="mt-4 text-sm text-[var(--ink-soft)]">
+                      Refreshing the settlement path with the current wallet and
+                      route assumptions…
+                    </p>
+                  ) : null}
 
                   <button
                     className={`mt-5 w-full rounded-[1.25rem] px-5 py-4 font-medium transition ${
@@ -972,7 +1117,11 @@ export function GhostBrokerConsole() {
                     onClick={handleSettle}
                     type="button"
                   >
-                    {run.settled ? "Settlement executed" : "Execute bounded settlement"}
+                    {run.settled
+                      ? "Settlement executed"
+                      : run.settlementPending
+                        ? "Waiting for settlement quote…"
+                        : "Execute bounded settlement"}
                   </button>
                 </>
               )}

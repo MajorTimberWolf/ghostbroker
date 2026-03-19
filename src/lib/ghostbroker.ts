@@ -42,6 +42,7 @@ export type CandidateEvaluation = {
 };
 
 export type EvaluationProvider = "venice" | "local";
+export type SettlementProvider = "uniswap" | "local";
 
 export type BrokerEvaluationResponse = {
   taskSnapshot: TaskForm;
@@ -70,6 +71,18 @@ export type SettlementPlan = {
   brokerFee: number;
   reserve: number;
   settlementNote: string;
+  requestId: string | null;
+  quoteId: string | null;
+  routing: string | null;
+  gasEstimateUSD: string | null;
+  swapper: Address | null;
+  txFailureReason: string | null;
+};
+
+export type SettlementQuoteResponse = {
+  settlementPlan: SettlementPlan;
+  providerUsed: SettlementProvider;
+  diagnostics: string[];
 };
 
 export type Receipt = {
@@ -323,9 +336,7 @@ export function buildSettlementPlan(
   const brokerFee = Math.round(task.budget * candidate.agent.feeRate);
   const reserve = Math.round(task.budget * 0.12);
   const quoteAmount = task.budget - brokerFee - reserve;
-  const payoutToken = candidate.agent.supportedTokens.includes(task.payoutToken)
-    ? task.payoutToken
-    : candidate.agent.supportedTokens[0];
+  const payoutToken = candidate.agent.supportedTokens[0];
 
   return {
     fundingToken: task.payoutToken,
@@ -341,6 +352,12 @@ export function buildSettlementPlan(
       payoutToken === "cUSD"
         ? "Route final payout to a mobile-friendly stablecoin rail."
         : "Settle on the default execution rail with an auditable quote.",
+    requestId: null,
+    quoteId: null,
+    routing: null,
+    gasEstimateUSD: null,
+    swapper: null,
+    txFailureReason: null,
   } satisfies SettlementPlan;
 }
 

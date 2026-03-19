@@ -34,7 +34,8 @@
       "Synthesis API",
       "Venice API",
       "MetaMask Smart Accounts Kit",
-      "viem"
+      "viem",
+      "Uniswap Trade API"
     ],
     "helpfulResources": [
       "https://synthesis.md/",
@@ -46,7 +47,9 @@
       "https://docs.venice.ai/welcome/getting-started",
       "https://docs.venice.ai/api-reference/endpoint/chat/completions",
       "https://github.com/MetaMask/smart-accounts-kit",
-      "https://docs.metamask.io/smart-accounts-kit/get-started/quickstart/"
+      "https://docs.metamask.io/smart-accounts-kit/get-started/quickstart/",
+      "https://api-docs.uniswap.org/api-reference/swapping/quote",
+      "https://api-docs.uniswap.org/guides/faqs"
     ],
     "helpfulSkills": [
       {

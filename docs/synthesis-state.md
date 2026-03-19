@@ -23,7 +23,7 @@
 
 ## Current blockers before publish
 
-- Wire the real Uniswap quote and settlement path.
+- Wire transaction execution on top of the Uniswap quote path instead of stopping at quote retrieval.
 - Add at least one additional trust primitive that is genuinely load-bearing (`Self`, `Filecoin`, or both).
 - Add deployed demo URL.
 - Add video URL.
