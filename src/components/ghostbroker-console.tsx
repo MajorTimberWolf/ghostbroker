@@ -56,7 +56,8 @@ type RunState = {
   error: string | null;
   approvalPending: boolean;
   approvalError: string | null;
-  grantedPermission: GetGrantedExecutionPermissionsResult[number] | null;
+  approvalMode: "wallet-granted" | "simulated" | null;
+  grantedPermission: GrantedPermissionPreview | null;
   settlementPending: boolean;
   settlementError: string | null;
   settlementDiagnostics: string[];
@@ -83,6 +84,7 @@ const initialRunState: RunState = {
   error: null,
   approvalPending: false,
   approvalError: null,
+  approvalMode: null,
   grantedPermission: null,
   settlementPending: false,
   settlementError: null,
@@ -102,6 +104,13 @@ type WalletState = {
   supportedPermissions: GetSupportedExecutionPermissionsResult | null;
   grantedPermissions: GetGrantedExecutionPermissionsResult;
   capabilityError: string | null;
+};
+
+type GrantedPermissionPreview = {
+  permissionType: string;
+  context: Address | null;
+  delegationManager: Address | null;
+  to: Address | null;
 };
 
 const initialWalletState: WalletState = {
@@ -142,6 +151,25 @@ function receiptTone(providerUsed: ReceiptProvider | null) {
   return "border-amber-300 bg-amber-50 text-amber-900";
 }
 
+function approvalTone(approvalMode: RunState["approvalMode"]) {
+  if (approvalMode === "wallet-granted") {
+    return "border-emerald-300 bg-emerald-50 text-emerald-900";
+  }
+
+  return "border-amber-300 bg-amber-50 text-amber-900";
+}
+
+function normalizeGrantedPermission(
+  grant: GetGrantedExecutionPermissionsResult[number],
+): GrantedPermissionPreview {
+  return {
+    permissionType: grant.permission.type,
+    context: grant.context,
+    delegationManager: grant.delegationManager,
+    to: grant.to,
+  };
+}
+
 async function loadExecutionPermissionsWithRetry() {
   try {
     return await loadMetaMaskExecutionPermissions();
@@ -153,7 +181,16 @@ async function loadExecutionPermissionsWithRetry() {
     }
 
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    return loadMetaMaskExecutionPermissions();
+
+    try {
+      return await loadMetaMaskExecutionPermissions();
+    } catch (retryError) {
+      if (toErrorMessage(retryError).includes("already being processed")) {
+        return null;
+      }
+
+      throw retryError;
+    }
   }
 }
 
@@ -186,8 +223,10 @@ export function GhostBrokerConsole() {
 
         try {
           const permissions = await loadExecutionPermissionsWithRetry();
-          supportedPermissions = permissions.supportedPermissions;
-          grantedPermissions = permissions.grantedPermissions;
+          if (permissions) {
+            supportedPermissions = permissions.supportedPermissions;
+            grantedPermissions = permissions.grantedPermissions;
+          }
         } catch (error) {
           capabilityError = toErrorMessage(error);
         }
@@ -296,6 +335,7 @@ export function GhostBrokerConsole() {
       error: null,
       approvalPending: false,
       approvalError: null,
+      approvalMode: null,
       grantedPermission: null,
       settlementPending: false,
       settlementError: null,
@@ -323,6 +363,7 @@ export function GhostBrokerConsole() {
       receiptProviderUsed: null,
       approvalPending: false,
       approvalError: null,
+      approvalMode: null,
       grantedPermission: null,
       settlementPending: true,
       settlementError: null,
@@ -448,8 +489,10 @@ export function GhostBrokerConsole() {
 
       try {
         const permissions = await loadExecutionPermissionsWithRetry();
-        supportedPermissions = permissions.supportedPermissions;
-        grantedPermissions = permissions.grantedPermissions;
+        if (permissions) {
+          supportedPermissions = permissions.supportedPermissions;
+          grantedPermissions = permissions.grantedPermissions;
+        }
       } catch (error) {
         capabilityError = toErrorMessage(error);
       }
@@ -514,8 +557,8 @@ export function GhostBrokerConsole() {
 
       setWallet((current) => ({
         ...current,
-        grantedPermissions: permissions.grantedPermissions,
-        supportedPermissions: permissions.supportedPermissions,
+        grantedPermissions: permissions?.grantedPermissions ?? current.grantedPermissions,
+        supportedPermissions: permissions?.supportedPermissions ?? current.supportedPermissions,
       }));
 
       setRun((current) => ({
@@ -525,7 +568,10 @@ export function GhostBrokerConsole() {
         approvalError: permissionResult.latestGrant
           ? null
           : "MetaMask returned no execution permission context.",
-        grantedPermission: permissionResult.latestGrant,
+        approvalMode: permissionResult.latestGrant ? "wallet-granted" : null,
+        grantedPermission: permissionResult.latestGrant
+          ? normalizeGrantedPermission(permissionResult.latestGrant)
+          : null,
       }));
     } catch (error) {
       setRun((current) => ({
@@ -534,6 +580,23 @@ export function GhostBrokerConsole() {
         approvalError: toErrorMessage(error),
       }));
     }
+  }
+
+  function handleSimulateApproval() {
+    if (!run.delegation || !requestedPermission) return;
+
+    setRun((current) => ({
+      ...current,
+      approved: true,
+      approvalError: null,
+      approvalMode: "simulated",
+      grantedPermission: {
+        permissionType: requestedPermission.permission.type,
+        context: wallet.account,
+        delegationManager: null,
+        to: run.delegation!.delegateAddress,
+      },
+    }));
   }
 
   async function handleSettle() {
@@ -633,6 +696,23 @@ export function GhostBrokerConsole() {
   const canRequestPermission =
     Boolean(run.delegation && run.taskSnapshot && wallet.account) &&
     Boolean(permissionSupport?.isTypeSupported && permissionSupport.isChainSupported);
+  const capabilityMessage =
+    wallet.capabilityError &&
+    !wallet.capabilityError.includes("already being processed")
+      ? wallet.capabilityError
+      : null;
+  const unsupportedPermissionMessage =
+    wallet.account &&
+    permissionBlueprint &&
+    (capabilityMessage ||
+      (permissionSupport !== null &&
+        (!permissionSupport.isTypeSupported || !permissionSupport.isChainSupported)))
+      ? "This wallet version does not expose ERC-7715 execution permission RPCs on the required chain yet. The request payload below is real, but this session needs a clearly labeled simulated approval to keep the demo moving."
+      : null;
+  const canSimulateApproval =
+    Boolean(wallet.isAvailable && wallet.account && run.delegation && requestedPermission) &&
+    Boolean(unsupportedPermissionMessage) &&
+    !run.approved;
   const receiptProviderUsed = run.receiptProviderUsed ?? null;
   const receiptPending = run.receiptPending ?? false;
   const receiptError = run.receiptError ?? null;
@@ -975,9 +1055,20 @@ export function GhostBrokerConsole() {
                           flipping a demo boolean. GhostBroker asks MetaMask for a
                           bounded execution scope tied to the frozen task snapshot.
                         </p>
-                        {wallet.capabilityError ? (
+                        {capabilityMessage ? (
                           <div className="rounded-[1.2rem] border border-[var(--accent-gold)] bg-[rgba(240,195,107,0.12)] px-4 py-3">
-                            {wallet.capabilityError}
+                            {capabilityMessage}
+                          </div>
+                        ) : null}
+                        {unsupportedPermissionMessage ? (
+                          <div className="rounded-[1.2rem] border border-[var(--accent-gold)] bg-[linear-gradient(145deg,rgba(255,246,224,0.86),rgba(255,238,212,0.94))] px-4 py-3 text-[var(--ink-strong)] shadow-[0_10px_24px_rgba(92,61,22,0.08)]">
+                            <p className="font-medium tracking-[-0.01em]">
+                              Wallet-granted execution permission is not available in
+                              this MetaMask build.
+                            </p>
+                            <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">
+                              {unsupportedPermissionMessage}
+                            </p>
                           </div>
                         ) : null}
                       </div>
@@ -1087,7 +1178,9 @@ export function GhostBrokerConsole() {
                     {run.approvalPending
                       ? "Requesting MetaMask permission…"
                       : run.approved
-                        ? "Execution permission granted"
+                        ? run.approvalMode === "simulated"
+                          ? "Bounded approval simulated"
+                          : "Execution permission granted"
                         : wallet.account
                           ? "Request bounded execution permission"
                           : "Connect MetaMask to approve"}
@@ -1095,6 +1188,16 @@ export function GhostBrokerConsole() {
 
                   {run.approvalError ? (
                     <p className="mt-3 text-sm text-rose-700">{run.approvalError}</p>
+                  ) : null}
+
+                  {canSimulateApproval ? (
+                    <button
+                      className="mt-3 w-full rounded-[1.1rem] border border-[var(--accent-gold)] bg-[rgba(255,246,224,0.92)] px-4 py-3 text-sm font-medium text-[var(--ink-strong)] transition hover:brightness-95"
+                      onClick={handleSimulateApproval}
+                      type="button"
+                    >
+                      Simulate bounded approval for demo
+                    </button>
                   ) : null}
 
                   {wallet.isAvailable && !wallet.account ? (
@@ -1109,14 +1212,35 @@ export function GhostBrokerConsole() {
                   ) : null}
 
                   {run.grantedPermission ? (
-                    <div className="mt-4 rounded-[1.5rem] border border-emerald-300 bg-emerald-50/70 p-4">
-                      <p className="font-mono text-xs uppercase tracking-[0.16em] text-emerald-800">
-                        Granted context
-                      </p>
+                    <div
+                      className={`mt-4 rounded-[1.5rem] border p-4 ${
+                        run.approvalMode === "simulated"
+                          ? "border-amber-300 bg-amber-50/70"
+                          : "border-emerald-300 bg-emerald-50/70"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center gap-3">
+                        <p
+                          className={`font-mono text-xs uppercase tracking-[0.16em] ${
+                            run.approvalMode === "simulated"
+                              ? "text-amber-900"
+                              : "text-emerald-800"
+                          }`}
+                        >
+                          Granted context
+                        </p>
+                        <span
+                          className={`rounded-full border px-3 py-1 font-mono text-[0.68rem] uppercase tracking-[0.18em] ${approvalTone(run.approvalMode)}`}
+                        >
+                          {run.approvalMode === "simulated"
+                            ? "delegation simulated"
+                            : "delegation wallet-granted"}
+                        </span>
+                      </div>
                       <div className="mt-3 grid gap-3 text-sm">
                         <KeyValue
                           label="Permission type"
-                          value={run.grantedPermission.permission.type}
+                          value={run.grantedPermission.permissionType}
                         />
                         <KeyValue
                           label="Context"
