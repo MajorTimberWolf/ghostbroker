@@ -195,10 +195,11 @@ export async function loadMetaMaskExecutionPermissions() {
   }
 
   const client = await createErc7715Client(provider);
-  const [supportedPermissions, grantedPermissions] = await Promise.all([
-    client.getSupportedExecutionPermissions(),
-    client.getGrantedExecutionPermissions(),
-  ]);
+  // Flask appears to serialize execution-permission RPCs. Running these
+  // concurrently can surface "already being processed" and leave capability
+  // state empty even when the wallet supports the requested type.
+  const supportedPermissions = await client.getSupportedExecutionPermissions();
+  const grantedPermissions = await client.getGrantedExecutionPermissions();
 
   return {
     supportedPermissions,

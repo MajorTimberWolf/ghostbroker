@@ -159,6 +159,21 @@ function approvalTone(approvalMode: RunState["approvalMode"]) {
   return "border-amber-300 bg-amber-50 text-amber-900";
 }
 
+function walletChainLabel(chainId: number | null) {
+  switch (chainId) {
+    case 8453:
+      return "Base";
+    case 84532:
+      return "Base Sepolia";
+    case 42220:
+      return "Celo";
+    case 44787:
+      return "Celo Alfajores";
+    default:
+      return chainId ? `Chain ${chainId}` : "Chain unknown";
+  }
+}
+
 function normalizeGrantedPermission(
   grant: GetGrantedExecutionPermissionsResult[number],
 ): GrantedPermissionPreview {
@@ -717,6 +732,13 @@ export function GhostBrokerConsole() {
   const receiptPending = run.receiptPending ?? false;
   const receiptError = run.receiptError ?? null;
   const receiptDiagnostics = run.receiptDiagnostics ?? [];
+  const walletSummaryLabel = wallet.account
+    ? `${formatAddress(wallet.account)} · ${walletChainLabel(wallet.chainId)}`
+    : wallet.isMetaMask
+      ? "MetaMask idle"
+      : wallet.isAvailable
+        ? "Wallet detected"
+        : "MetaMask unavailable";
 
   return (
     <main className="min-h-screen bg-[var(--surface-0)] text-[var(--ink-strong)]">
@@ -739,7 +761,60 @@ export function GhostBrokerConsole() {
               </p>
             </div>
 
-            <div className="grid gap-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--ink-muted)] md:grid-cols-3">
+            <div className="grid gap-3 lg:min-w-[23rem]">
+              <div className="rounded-[1.75rem] border border-[var(--border-strong)] bg-[rgba(255,252,248,0.9)] p-4 shadow-[0_18px_45px_rgba(42,28,18,0.06)]">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="font-mono text-[0.68rem] uppercase tracking-[0.22em] text-[var(--ink-muted)]">
+                      Wallet access
+                    </p>
+                    <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">
+                      Connect early so the delegation step can use the live wallet
+                      session instead of waiting for a late prompt.
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full border px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] ${
+                      wallet.account
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                        : "border-[var(--border)] bg-white text-[var(--ink-muted)]"
+                    }`}
+                  >
+                    {walletSummaryLabel}
+                  </span>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    className={`rounded-full px-4 py-3 text-sm font-medium transition ${
+                      wallet.isHydrating || wallet.isConnecting
+                        ? "cursor-wait border border-[var(--border)] bg-white text-[var(--ink-muted)]"
+                        : wallet.isAvailable
+                          ? "bg-[var(--ink-strong)] text-white hover:brightness-110"
+                          : "border border-[var(--border)] bg-white text-[var(--ink-muted)]"
+                    }`}
+                    disabled={wallet.isHydrating || wallet.isConnecting || !wallet.isAvailable}
+                    onClick={handleConnectWallet}
+                    type="button"
+                  >
+                    {wallet.isHydrating
+                      ? "Checking wallet…"
+                      : wallet.isConnecting
+                        ? "Connecting MetaMask…"
+                        : wallet.account
+                          ? "Refresh MetaMask"
+                          : "Connect MetaMask"}
+                  </button>
+                  <span className="font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                    {wallet.isMetaMask
+                      ? "MetaMask provider ready"
+                      : wallet.isAvailable
+                        ? "Injected wallet detected"
+                        : "Install MetaMask Flask in this browser"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid gap-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--ink-muted)] md:grid-cols-3">
               <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,252,248,0.86)] px-4 py-3">
                 <div>Anchor</div>
                 <div className="mt-2 text-[var(--ink-strong)]">Venice</div>
@@ -752,6 +827,7 @@ export function GhostBrokerConsole() {
                 <div>Settlement</div>
                 <div className="mt-2 text-[var(--ink-strong)]">Uniswap</div>
               </div>
+            </div>
             </div>
           </div>
         </div>
