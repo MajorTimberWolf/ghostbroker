@@ -40,6 +40,17 @@ export default function EvaluatePage() {
         description="The broker has privately ranked candidates. Select the provider you want to delegate to."
       />
 
+      <Card className="mb-8 border-[var(--border-strong)] bg-[var(--surface-1)]/70">
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge label="testnet provider pool" variant="warning" />
+          <p className="text-[0.82rem] leading-7 text-[var(--ink-soft)]">
+            This shortlist is currently sourced from GhostBroker&apos;s testnet
+            provider registry. Evaluation is real; provider identities are demo
+            agents until we wire live registry discovery.
+          </p>
+        </div>
+      </Card>
+
       {/* Memo */}
       <div className="mb-8">
         <div className="mb-4 flex items-center gap-3">

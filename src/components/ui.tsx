@@ -52,10 +52,10 @@ export function Card({
 export function KV({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] py-2.5 last:border-b-0">
-      <span className="font-mono text-[0.62rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+      <span className="max-w-[38%] font-mono text-[0.62rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
         {label}
       </span>
-      <span className="text-right text-[0.82rem] text-[var(--ink-strong)]">
+      <span className="max-w-[62%] min-w-0 break-all text-right text-[0.82rem] text-[var(--ink-strong)]">
         {value}
       </span>
     </div>

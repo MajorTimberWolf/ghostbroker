@@ -14,6 +14,10 @@ import {
   SectionLabel,
   StepNav,
 } from "@/components/ui";
+import {
+  formatAgentTarget,
+  formatPermissionContext,
+} from "@/lib/broker-context";
 
 export default function DelegatePage() {
   const {
@@ -29,6 +33,9 @@ export default function DelegatePage() {
     permissionBlueprint,
     permissionSupport,
   } = useBroker();
+  const supportedPermissionTypes = wallet.supportedPermissions
+    ? Object.keys(wallet.supportedPermissions)
+    : [];
 
   if (!broker.delegation || !broker.selected) {
     return (
@@ -92,6 +99,17 @@ export default function DelegatePage() {
               </SecondaryButton>
             </div>
           )}
+          {wallet.account && (
+            <div className="mt-4">
+              <SecondaryButton
+                className="w-auto px-4 py-2.5 text-[0.75rem]"
+                onClick={() => void connectWallet()}
+                disabled={wallet.isConnecting}
+              >
+                {wallet.isConnecting ? "Refreshing..." : "Refresh MetaMask"}
+              </SecondaryButton>
+            </div>
+          )}
         </Card>
 
         {/* Delegation plan */}
@@ -105,7 +123,10 @@ export default function DelegatePage() {
           </p>
           <div className="space-y-0">
             <KV label="Delegate" value={delegation.delegate} />
-            <KV label="Delegate wallet" value={formatAddress(delegation.delegateAddress)} />
+            <KV
+              label="Delegate wallet"
+              value={formatAgentTarget(delegation.delegate, delegation.delegateAddress)}
+            />
             <KV
               label="Spend cap"
               value={`${delegation.spendCap} ${broker.taskSnapshot?.payoutToken ?? broker.task.payoutToken}`}
@@ -149,6 +170,12 @@ export default function DelegatePage() {
                       : "type OK, chain not reported"
                     : "not reported by wallet"}
                 </p>
+                <p className="mt-1 text-[0.78rem] text-[var(--ink-soft)]">
+                  Wallet reports:{" "}
+                  {supportedPermissionTypes.length > 0
+                    ? supportedPermissionTypes.join(", ")
+                    : "no execution permission types"}
+                </p>
               </div>
             )}
           </Card>
@@ -163,6 +190,11 @@ export default function DelegatePage() {
             <p className="mt-1.5 text-[0.78rem] leading-6 text-amber-800/80">
               {unsupportedPermissionMessage}
             </p>
+            {wallet.capabilityError && (
+              <p className="mt-2 text-[0.74rem] leading-6 text-amber-800/70">
+                Wallet diagnostic: {wallet.capabilityError}
+              </p>
+            )}
           </Card>
         )}
 
@@ -190,7 +222,18 @@ export default function DelegatePage() {
         )}
 
         {broker.approvalError && (
-          <p className="text-[0.82rem] text-rose-700">{broker.approvalError}</p>
+          <Card className="border-rose-200/70 bg-rose-50/40">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[0.82rem] text-rose-700">{broker.approvalError}</p>
+              <SecondaryButton
+                className="w-auto px-4 py-2.5 text-[0.75rem]"
+                onClick={() => void requestApproval()}
+                disabled={broker.approvalPending || !wallet.account || !canRequestPermission}
+              >
+                Retry approval
+              </SecondaryButton>
+            </div>
+          </Card>
         )}
 
         {/* Granted permission result */}
@@ -217,12 +260,21 @@ export default function DelegatePage() {
             </div>
             <div className="mt-3 space-y-0">
               <KV label="Permission type" value={broker.grantedPermission.permissionType} />
-              <KV label="Context" value={formatAddress(broker.grantedPermission.context)} />
+              <KV
+                label="Permission context"
+                value={formatPermissionContext(broker.grantedPermission.context)}
+              />
               <KV
                 label="Delegation manager"
                 value={formatAddress(broker.grantedPermission.delegationManager)}
               />
-              <KV label="Granted for" value={formatAddress(broker.grantedPermission.to)} />
+              <KV
+                label="Granted for"
+                value={formatAgentTarget(
+                  broker.selected.agent.ens,
+                  broker.grantedPermission.to ?? broker.selected.agent.delegateAddress,
+                )}
+              />
             </div>
           </Card>
         )}

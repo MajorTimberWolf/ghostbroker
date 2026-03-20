@@ -1,8 +1,13 @@
-import type { Address } from "viem";
+import { parseUnits, type Address } from "viem";
 
 export type Urgency = "today" | "48h" | "this-week";
 export type Confidentiality = "standard" | "sensitive" | "sealed";
 export type SettlementToken = "USDC" | "ETH" | "cUSD";
+export type SettlementExecutionKind =
+  | "receipt-only"
+  | "native-transfer"
+  | "erc20-transfer"
+  | "swap-router";
 
 export type TaskForm = {
   title: string;
@@ -65,6 +70,8 @@ export type DelegationPlan = {
 };
 
 export type SettlementPlan = {
+  chain: string;
+  chainId: number;
   fundingToken: SettlementToken;
   payoutToken: SettlementToken;
   route: string;
@@ -78,6 +85,15 @@ export type SettlementPlan = {
   gasEstimateUSD: string | null;
   swapper: Address | null;
   txFailureReason: string | null;
+  executionKind: SettlementExecutionKind;
+  recipient: Address | null;
+  tokenInAddress: Address | null;
+  tokenOutAddress: Address | null;
+  routerAddress: Address | null;
+  feeTier: number | null;
+  amountInBaseUnits: string | null;
+  amountOutMinimumBaseUnits: string | null;
+  txHash: string | null;
 };
 
 export type SettlementQuoteResponse = {
@@ -91,6 +107,7 @@ export type Receipt = {
   providerEns: string;
   amount: number;
   token: SettlementToken;
+  txHash: string | null;
   receiptAnchor: string;
   storagePlan: string;
   trustUpdate: string;
@@ -115,6 +132,21 @@ export const defaultTask: TaskForm = {
   requiresPersistentReceipts: true,
   requiresAutonomy: true,
 };
+
+export function getSuggestedBudgetForToken(token: SettlementToken) {
+  if (token === "ETH") {
+    return 0.03;
+  }
+
+  return 2400;
+}
+
+const DEFAULT_DEMO_RECIPIENT =
+  "0xf63e9e2227f5ff84c328d76b21f730d314b840d0" as Address;
+
+const DEMO_RECIPIENT =
+  (process.env.NEXT_PUBLIC_GHOSTBROKER_DEMO_RECIPIENT as Address | undefined) ??
+  DEFAULT_DEMO_RECIPIENT;
 
 const TESTNET_CHAIN_IDS = new Set([84532, 44787, 11155111]);
 
@@ -141,12 +173,42 @@ export function getSettlementChain(
   };
 }
 
+function getSettlementTokenMetadata(
+  token: SettlementToken,
+  walletChainId: number | null = null,
+) {
+  const isTestnet = isTestnetChainId(walletChainId);
+
+  if (token === "ETH") {
+    return {
+      address: null,
+      decimals: 18,
+    };
+  }
+
+  if (token === "USDC") {
+    return {
+      address: isTestnet
+        ? ("0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Address)
+        : ("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address),
+      decimals: 6,
+    };
+  }
+
+  return {
+    address: isTestnet
+      ? ("0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1" as Address)
+      : ("0x765DE816845861e75A25fCA122bb6898B8B1282a" as Address),
+    decimals: 18,
+  };
+}
+
 export const agents: AgentProfile[] = [
   {
     id: "venice-risk-desk",
     name: "Venice Risk Desk",
     ens: "riskdesk.ghost.eth",
-    delegateAddress: "0x1111111111111111111111111111111111111111",
+    delegateAddress: DEMO_RECIPIENT,
     specialty: "Private due diligence",
     summary:
       "High-confidence private evaluation agent for sensitive finance and counterparty screening.",
@@ -164,7 +226,7 @@ export const agents: AgentProfile[] = [
     id: "uniswap-settler",
     name: "Uniswap Settler",
     ens: "settler.ghost.eth",
-    delegateAddress: "0x2222222222222222222222222222222222222222",
+    delegateAddress: DEMO_RECIPIENT,
     specialty: "Execution and routing",
     summary:
       "Execution-focused agent for swaps, routing, and payout settlement across supported rails.",
@@ -182,7 +244,7 @@ export const agents: AgentProfile[] = [
     id: "receipts-notary",
     name: "Receipts Notary",
     ens: "notary.ghost.eth",
-    delegateAddress: "0x3333333333333333333333333333333333333333",
+    delegateAddress: DEMO_RECIPIENT,
     specialty: "Receipts and provenance",
     summary:
       "Agent optimized for execution logging, reputation updates, and durable proof trails.",
@@ -200,7 +262,7 @@ export const agents: AgentProfile[] = [
     id: "celo-field-ops",
     name: "Celo Field Ops",
     ens: "fieldops.ghost.eth",
-    delegateAddress: "0x4444444444444444444444444444444444444444",
+    delegateAddress: DEMO_RECIPIENT,
     specialty: "Mobile-first payouts",
     summary:
       "Stablecoin-native operations agent for fast real-world settlement and service delivery.",
@@ -220,6 +282,15 @@ function urgencyWeight(urgency: Urgency) {
   if (urgency === "today") return 1.2;
   if (urgency === "48h") return 1;
   return 0.8;
+}
+
+function amountPrecision(token: SettlementToken) {
+  return token === "ETH" ? 6 : 2;
+}
+
+export function roundTokenAmount(amount: number, token: SettlementToken) {
+  const factor = 10 ** amountPrecision(token);
+  return Math.round(amount * factor) / factor;
 }
 
 export function cloneTask(task: TaskForm): TaskForm {
@@ -340,7 +411,7 @@ export function buildDelegationPlan(
   candidate: CandidateEvaluation,
   walletChainId: number | null = null,
 ) {
-  const spendCap = Math.round(task.budget * 0.88);
+  const spendCap = roundTokenAmount(task.budget * 0.88, task.payoutToken);
   const settlementChain = getSettlementChain(task.payoutToken, walletChainId);
 
   return {
@@ -366,19 +437,26 @@ export function buildDelegationPlan(
 export function buildSettlementPlan(
   task: TaskForm,
   candidate: CandidateEvaluation,
+  walletChainId: number | null = null,
 ) {
-  const brokerFee = Math.round(task.budget * candidate.agent.feeRate);
-  const reserve = Math.round(task.budget * 0.12);
-  const quoteAmount = task.budget - brokerFee - reserve;
+  const settlementChain = getSettlementChain(task.payoutToken, walletChainId);
+  const brokerFee = roundTokenAmount(task.budget * candidate.agent.feeRate, task.payoutToken);
+  const reserve = roundTokenAmount(task.budget * 0.12, task.payoutToken);
+  const quoteAmount = roundTokenAmount(task.budget - brokerFee - reserve, task.payoutToken);
   const payoutToken = candidate.agent.supportedTokens[0];
+  const sameTokenRoute = task.payoutToken === payoutToken;
+  const fundingToken = task.payoutToken;
+  const fundingTokenMeta = getSettlementTokenMetadata(fundingToken, walletChainId);
+  const payoutTokenMeta = getSettlementTokenMetadata(payoutToken, walletChainId);
 
   return {
-    fundingToken: task.payoutToken,
+    chain: settlementChain.chain,
+    chainId: settlementChain.chainId,
+    fundingToken,
     payoutToken,
-    route:
-      task.payoutToken === payoutToken
-        ? `Direct ${task.payoutToken} settlement`
-        : `${task.payoutToken} -> ${payoutToken} via Uniswap routing`,
+    route: sameTokenRoute
+      ? `Direct ${fundingToken} settlement`
+      : `${fundingToken} -> ${payoutToken} via Uniswap routing`,
     quoteAmount,
     brokerFee,
     reserve,
@@ -392,6 +470,25 @@ export function buildSettlementPlan(
     gasEstimateUSD: null,
     swapper: null,
     txFailureReason: null,
+    executionKind:
+      sameTokenRoute
+        ? fundingToken === "ETH"
+          ? "native-transfer"
+          : "erc20-transfer"
+        : "receipt-only",
+    recipient: candidate.agent.delegateAddress,
+    tokenInAddress: sameTokenRoute ? fundingTokenMeta.address : null,
+    tokenOutAddress: sameTokenRoute ? payoutTokenMeta.address : null,
+    routerAddress: null,
+    feeTier: null,
+    amountInBaseUnits: sameTokenRoute
+      ? parseUnits(
+          Math.max(quoteAmount, 0).toString(),
+          fundingTokenMeta.decimals,
+        ).toString()
+      : null,
+    amountOutMinimumBaseUnits: null,
+    txHash: null,
   } satisfies SettlementPlan;
 }
 
@@ -407,6 +504,7 @@ export function buildReceipt(
     providerEns: candidate.agent.ens,
     amount: settlement.quoteAmount,
     token: settlement.payoutToken,
+    txHash: settlement.txHash,
     receiptAnchor: `filecoin://ghostbroker/${candidate.agent.id}/${receiptId}`,
     storagePlan:
       "Persist settlement details, delegation scope, and execution summary as a durable receipt bundle.",

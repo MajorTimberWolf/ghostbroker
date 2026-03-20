@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getEvaluation } from "@/lib/broker-evaluation-store";
+import type { CandidateEvaluation, TaskForm } from "@/lib/ghostbroker";
 import { getUniswapSettlementQuote } from "@/lib/uniswap";
 
 type QuoteRequestBody = {
@@ -8,6 +9,8 @@ type QuoteRequestBody = {
   evaluationId?: string;
   chainId?: number | null;
   swapper?: string | null;
+  task?: TaskForm;
+  candidate?: CandidateEvaluation;
 };
 
 export async function POST(request: Request) {
@@ -23,7 +26,9 @@ export async function POST(request: Request) {
   }
 
   const evaluation = getEvaluation(body.evaluationId);
-  if (!evaluation) {
+  const task = evaluation?.taskSnapshot ?? body.task;
+
+  if (!task) {
     return NextResponse.json(
       {
         error: "The selected evaluation could not be found.",
@@ -32,9 +37,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const candidate = evaluation.candidates.find(
-    (entry) => entry.agent.id === body.agentId,
-  );
+  const candidate =
+    evaluation?.candidates.find((entry) => entry.agent.id === body.agentId) ??
+    (body.candidate?.agent.id === body.agentId ? body.candidate : null);
 
   if (!candidate) {
     return NextResponse.json(
@@ -51,7 +56,7 @@ export async function POST(request: Request) {
       typeof body.swapper === "string" && body.swapper.length > 0
         ? (body.swapper as `0x${string}`)
         : null,
-    task: evaluation.taskSnapshot,
+    task,
     walletChainId: typeof body.chainId === "number" ? body.chainId : null,
   });
 

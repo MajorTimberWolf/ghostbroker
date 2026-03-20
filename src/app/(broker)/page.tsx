@@ -1,12 +1,35 @@
 "use client";
 
 import { useBroker } from "@/lib/broker-context";
-import { Card, PageHeader, PrimaryButton, StepNav } from "@/components/ui";
-import type { Confidentiality, Urgency } from "@/lib/ghostbroker";
+import {
+  Card,
+  PageHeader,
+  PrimaryButton,
+  SecondaryButton,
+  StepNav,
+} from "@/components/ui";
+import {
+  getSuggestedBudgetForToken,
+  type Confidentiality,
+  type SettlementToken,
+  type Urgency,
+} from "@/lib/ghostbroker";
 
 export default function IntakePage() {
   const { broker, updateTask, runEvaluation, hasTaskDrift } = useBroker();
   const task = broker.task;
+  const budgetStep = task.payoutToken === "ETH" ? 0.001 : 1;
+  const budgetMin = task.payoutToken === "ETH" ? 0.001 : 1;
+  const budgetHint =
+    task.payoutToken === "ETH"
+      ? "ETH budgets are literal ETH amounts. For Base Sepolia demos, use a small value like 0.03."
+      : `Stablecoin budgets are literal ${task.payoutToken} amounts.`;
+
+  function handleFundingTokenChange(nextToken: SettlementToken) {
+    if (nextToken === task.payoutToken) return;
+    updateTask("payoutToken", nextToken);
+    updateTask("budget", getSuggestedBudgetForToken(nextToken));
+  }
 
   return (
     <>
@@ -49,11 +72,14 @@ export default function IntakePage() {
                 <input
                   className="mt-2 w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-[0.88rem] outline-none transition focus:border-[var(--accent-blue)]"
                   type="number"
-                  min={200}
-                  step={50}
+                  min={budgetMin}
+                  step={budgetStep}
                   value={task.budget}
                   onChange={(e) => updateTask("budget", Number(e.target.value))}
                 />
+                <p className="mt-2 text-[0.74rem] leading-6 text-[var(--ink-muted)]">
+                  {budgetHint}
+                </p>
               </label>
 
               <label className="block">
@@ -95,9 +121,7 @@ export default function IntakePage() {
                 <select
                   className="mt-2 w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-[0.88rem] outline-none transition focus:border-[var(--accent-blue)]"
                   value={task.payoutToken}
-                  onChange={(e) =>
-                    updateTask("payoutToken", e.target.value as "USDC" | "ETH" | "cUSD")
-                  }
+                  onChange={(e) => handleFundingTokenChange(e.target.value as SettlementToken)}
                 >
                   <option value="USDC">USDC</option>
                   <option value="ETH">ETH</option>
@@ -132,7 +156,18 @@ export default function IntakePage() {
         </Card>
 
         {broker.error && (
-          <p className="text-[0.82rem] text-rose-700">{broker.error}</p>
+          <Card className="border-rose-200/70 bg-rose-50/40">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[0.82rem] text-rose-700">{broker.error}</p>
+              <SecondaryButton
+                className="w-auto px-4 py-2.5 text-[0.75rem]"
+                onClick={() => void runEvaluation()}
+                disabled={broker.isLoading}
+              >
+                Retry evaluation
+              </SecondaryButton>
+            </div>
+          </Card>
         )}
 
         {hasTaskDrift && (

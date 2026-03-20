@@ -5,7 +5,7 @@ import type {
   GetSupportedExecutionPermissionsResult,
   PermissionRequestParameter,
 } from "@metamask/smart-accounts-kit/actions";
-import type { Address } from "viem";
+import { parseUnits, type Address } from "viem";
 
 import {
   isTestnetChainId,
@@ -109,10 +109,7 @@ export function getPermissionBlueprint(
 }
 
 function toIntegerUnits(amount: number, decimals: number) {
-  return (
-    BigInt(Math.max(0, Math.round(amount))) *
-    BigInt(10) ** BigInt(decimals)
-  );
+  return parseUnits(Math.max(amount, 0).toString(), decimals);
 }
 
 function toTimestampHours(hours: number) {

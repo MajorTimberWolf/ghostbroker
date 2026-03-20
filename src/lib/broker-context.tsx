@@ -35,6 +35,7 @@ import {
 import {
   buildGhostBrokerPermissionRequest,
   connectMetaMask,
+  formatAddress,
   getMetaMaskProvider,
   getPermissionBlueprint,
   isBlueprintSupported,
@@ -42,6 +43,7 @@ import {
   readMetaMaskSession,
   requestGhostBrokerExecutionPermission,
 } from "@/lib/metamask";
+import { executeSettlementPlan } from "@/lib/settlement-execution";
 
 /* ─── Wallet ─── */
 
@@ -73,7 +75,7 @@ const initialWalletState: WalletState = {
 
 export type GrantedPermissionPreview = {
   permissionType: string;
-  context: Address | null;
+  context: string | null;
   delegationManager: Address | null;
   to: Address | null;
 };
@@ -178,6 +180,30 @@ export function useBroker() {
 
 function toErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "An unexpected error occurred.";
+}
+
+function isZeroHex(value: string | null) {
+  return value !== null && /^0x0+$/i.test(value);
+}
+
+export function formatPermissionContext(value: string | null) {
+  if (!value) {
+    return "No context";
+  }
+
+  if (isZeroHex(value)) {
+    return "Default context";
+  }
+
+  if (value.length > 26) {
+    return `${value.slice(0, 12)}…${value.slice(-8)}`;
+  }
+
+  return value;
+}
+
+export function formatAgentTarget(ens: string, address: Address) {
+  return `${ens} · ${formatAddress(address)}`;
 }
 
 function normalizeGrantedPermission(
@@ -309,6 +335,8 @@ export function BrokerProvider({ children }: { children: ReactNode }) {
             agentId,
             chainId: wallet.chainId,
             swapper: wallet.account,
+            task: broker.taskSnapshot,
+            candidate: broker.selected,
           }),
         });
         if (!res.ok) {
@@ -409,7 +437,7 @@ export function BrokerProvider({ children }: { children: ReactNode }) {
         ...s,
         selected: candidate,
         delegation: buildDelegationPlan(s.taskSnapshot!, candidate, wallet.chainId),
-        settlement: buildSettlementPlan(s.taskSnapshot!, candidate),
+        settlement: buildSettlementPlan(s.taskSnapshot!, candidate, wallet.chainId),
         receipt: null,
         approved: false,
         settled: false,
@@ -517,13 +545,31 @@ export function BrokerProvider({ children }: { children: ReactNode }) {
     const agentId = broker.selected.agent.id;
     setBroker((s) => ({ ...s, receiptPending: true, receiptError: null, receiptDiagnostics: [] }));
     try {
+      let settlementPlan = broker.settlement;
+      const shouldExecuteLive = broker.settlementProviderUsed === "uniswap";
+
+      if (shouldExecuteLive && broker.settlement.executionKind !== "receipt-only") {
+        const txHash = await executeSettlementPlan(broker.settlement);
+        settlementPlan = {
+          ...broker.settlement,
+          txHash,
+        };
+
+        setBroker((s) => ({
+          ...s,
+          settlement: settlementPlan,
+        }));
+      }
+
       const res = await fetch("/api/broker/receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           evaluationId: broker.evaluationId,
           agentId,
-          settlementPlan: broker.settlement,
+          settlementPlan,
+          task: broker.taskSnapshot,
+          candidate: broker.selected,
         }),
       });
       if (!res.ok) {
@@ -538,6 +584,7 @@ export function BrokerProvider({ children }: { children: ReactNode }) {
           : {
               ...s,
               settled: true,
+              settlement: settlementPlan,
               receipt: payload.receipt,
               receiptProviderUsed: payload.providerUsed,
               receiptPending: false,
@@ -547,7 +594,13 @@ export function BrokerProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       setBroker((s) => ({ ...s, receiptPending: false, receiptError: toErrorMessage(e) }));
     }
-  }, [broker.selected, broker.settlement, broker.evaluationId]);
+  }, [
+    broker.selected,
+    broker.settlement,
+    broker.evaluationId,
+    broker.taskSnapshot,
+    broker.settlementProviderUsed,
+  ]);
 
   const reset = useCallback(() => {
     setBroker(initialBrokerState);

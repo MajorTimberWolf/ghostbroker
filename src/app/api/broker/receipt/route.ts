@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 
 import { getEvaluation } from "@/lib/broker-evaluation-store";
 import { storeReceiptBundle } from "@/lib/filecoin";
-import type { SettlementPlan } from "@/lib/ghostbroker";
+import type {
+  CandidateEvaluation,
+  SettlementPlan,
+  TaskForm,
+} from "@/lib/ghostbroker";
 
 export const runtime = "nodejs";
 
@@ -10,6 +14,8 @@ type ReceiptRouteRequest = {
   evaluationId?: string;
   agentId?: string;
   settlementPlan?: SettlementPlan;
+  task?: TaskForm;
+  candidate?: CandidateEvaluation;
 };
 
 export async function POST(request: Request) {
@@ -17,6 +23,8 @@ export async function POST(request: Request) {
   const evaluationId = payload.evaluationId;
   const agentId = payload.agentId;
   const settlementPlan = payload.settlementPlan;
+  const fallbackTask = payload.task;
+  const fallbackCandidate = payload.candidate;
 
   if (!evaluationId || !agentId || !settlementPlan) {
     return NextResponse.json(
@@ -26,14 +34,19 @@ export async function POST(request: Request) {
   }
 
   const evaluation = getEvaluation(evaluationId);
-  if (!evaluation) {
+  const task = evaluation?.taskSnapshot ?? fallbackTask;
+
+  if (!task) {
     return NextResponse.json(
       { error: "Receipt creation requires a valid broker evaluation." },
       { status: 404 },
     );
   }
 
-  const candidate = evaluation.candidates.find((entry) => entry.agent.id === agentId);
+  const candidate =
+    evaluation?.candidates.find((entry) => entry.agent.id === agentId) ??
+    (fallbackCandidate?.agent.id === agentId ? fallbackCandidate : null);
+
   if (!candidate) {
     return NextResponse.json(
       { error: "Receipt creation requires a selected provider from the stored evaluation." },
@@ -43,7 +56,7 @@ export async function POST(request: Request) {
 
   const result = await storeReceiptBundle({
     evaluationId,
-    task: evaluation.taskSnapshot,
+    task,
     candidate,
     settlement: settlementPlan,
   });
