@@ -1,0 +1,83 @@
+{
+  "project": "GhostBroker",
+  "agent": "Bodvar",
+  "version": 1,
+  "runId": "ghostbroker-demo-run-2026-03-21",
+  "status": "completed",
+  "operatorWallet": "0xf63e9e2227F5fF84c328d76b21F730D314B840d0",
+  "network": {
+    "name": "Base Sepolia",
+    "chainId": 84532
+  },
+  "task": {
+    "title": "Confidential treasury diligence",
+    "objective": "Evaluate counterparties for a sensitive treasury action, approve a bounded execution path, settle onchain, and write a durable receipt.",
+    "fundingToken": "ETH",
+    "targetPayoutToken": "USDC",
+    "budgetCeiling": "0.03",
+    "confidentiality": "sealed"
+  },
+  "steps": [
+    {
+      "id": "evaluate",
+      "status": "completed",
+      "component": "venice",
+      "summary": "Server-side private evaluation returned ranked candidates and a redacted memo.",
+      "artifacts": {
+        "providerUsed": "venice"
+      }
+    },
+    {
+      "id": "delegate",
+      "status": "completed",
+      "component": "metamask",
+      "summary": "Wallet connected on Base Sepolia and bounded execution permission flow completed for the chosen provider path.",
+      "artifacts": {
+        "permissionType": "erc20-token-periodic",
+        "wallet": "0xf63e9e2227F5fF84c328d76b21F730D314B840d0"
+      }
+    },
+    {
+      "id": "quote",
+      "status": "completed",
+      "component": "uniswap",
+      "summary": "Live onchain quote fetched from Uniswap V3 QuoterV2 on Base Sepolia for ETH -> USDC.",
+      "artifacts": {
+        "route": "ETH -> USDC via Uniswap V3 Base Sepolia 3000",
+        "providerUsed": "uniswap"
+      }
+    },
+    {
+      "id": "execute",
+      "status": "completed",
+      "component": "settlement",
+      "summary": "Execution path wrapped ETH to WETH, approved router allowance, and executed exactInputSingle against the Base Sepolia swap router.",
+      "artifacts": {
+        "txHash": "0x70e62639be8d21c7b95efaf21f5a8c160c648490b37cf84136da616ec0a48ac0",
+        "basescanURL": "https://sepolia.basescan.org/tx/0x70e62639be8d21c7b95efaf21f5a8c160c648490b37cf84136da616ec0a48ac0"
+      }
+    },
+    {
+      "id": "receipt",
+      "status": "completed",
+      "component": "filecoin",
+      "summary": "Receipt bundle stored through Lighthouse and anchored to IPFS/Filecoin.",
+      "artifacts": {
+        "cid": "bafkreie7vxqagvc4cd6ykynjvh5hmgm6kzcnj27eq3usxluqwfnfp2hx7y",
+        "ipfsURL": "https://ipfs.io/ipfs/bafkreie7vxqagvc4cd6ykynjvh5hmgm6kzcnj27eq3usxluqwfnfp2hx7y"
+      }
+    }
+  ],
+  "safetyChecks": [
+    "Frozen task snapshot used after evaluation to prevent drift.",
+    "Delegation flow scoped to selected provider and bounded spend cap.",
+    "Live execution enabled only for valid direct transfer or swap-router settlement paths.",
+    "Receipt writing follows execution and includes durable storage diagnostics."
+  ],
+  "outcome": {
+    "selectedProvider": "riskdesk.ghost.eth",
+    "selectedProviderAddress": "0xf63e9e2227F5fF84c328d76b21F730D314B840d0",
+    "result": "completed",
+    "receiptStored": true
+  }
+}

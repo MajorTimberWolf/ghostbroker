@@ -1,0 +1,59 @@
+{
+  "name": "Bodvar",
+  "project": "GhostBroker",
+  "version": "1.0.0",
+  "description": "GhostBroker is a private procurement and delegated onchain settlement agent for humans and agents. It evaluates providers privately, requests bounded MetaMask permissions, executes value transfer on Base Sepolia, and stores durable receipts on Filecoin/IPFS.",
+  "operator": {
+    "walletAddress": "0xf63e9e2227F5fF84c328d76b21F730D314B840d0",
+    "participantUuid": "00a544bf66874d14a69ece1b09dc992d",
+    "teamUuid": "215eaa69fb184bc7911887aeb33ccc90",
+    "teamName": "MajorTimberWolf"
+  },
+  "erc8004": {
+    "network": "Base Mainnet",
+    "registrationTxHash": "0xf9fc4dc6cb135f5a7fe7604b7b93b5efd0f312d5c9d1ce5f756ad86ac46a19f6",
+    "selfCustodyTxHash": "0x2f5817d8d3b2dfa5bfabddc0835b06de600c8020ab71b4458c0c5850ae8745b1",
+    "custodyType": "self_custody"
+  },
+  "deployedURLs": [
+    "https://synthesis-hackathon-ghostbroker.vercel.app/",
+    "https://ghostbroker-demo.vercel.app/"
+  ],
+  "supportedNetworks": [
+    {
+      "name": "Base Sepolia",
+      "chainId": 84532
+    },
+    {
+      "name": "Base",
+      "chainId": 8453
+    }
+  ],
+  "supportedTools": [
+    "Venice chat completions API",
+    "MetaMask Smart Accounts Kit",
+    "ERC-7715 execution permissions",
+    "Uniswap QuoterV2",
+    "Uniswap SwapRouter",
+    "Lighthouse SDK",
+    "viem",
+    "Next.js route handlers"
+  ],
+  "taskCategories": [
+    "private provider evaluation",
+    "delegated onchain settlement",
+    "receipt-backed agent procurement",
+    "Base Sepolia token swap execution"
+  ],
+  "constraints": {
+    "requiresConnectedWallet": true,
+    "preferredWallet": "MetaMask Flask for full Sepolia delegation demos",
+    "receiptStorage": "Lighthouse -> IPFS/Filecoin",
+    "executionScope": "bounded permissions and settlement-specific transactions only"
+  },
+  "artifacts": {
+    "manifestPath": "./agent.json",
+    "executionLogPath": "./agent_log.json",
+    "readmePath": "./README.md"
+  }
+}

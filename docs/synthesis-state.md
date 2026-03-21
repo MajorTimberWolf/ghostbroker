@@ -15,22 +15,24 @@
 - Repo: `https://github.com/MajorTimberWolf/ghostbroker`
 - First commit timestamp: `2026-03-19T15:44:36Z`
 
-## Draft project
+## Project
 
 - Project UUID: `60d5bdffec3b4bf1af56a7d2f36fd90f`
-- Project slug: `ghostbroker-ae15`
-- Status: `draft`
+- Project slug: `ghostbroker-3718`
+- Status: `publish`
 
 ## Public assets
 
 - Deployed app: `https://synthesis-hackathon-ghostbroker.vercel.app/`
 - Demo video: `https://youtu.be/NXsUF660P9o`
 
-## Remaining blockers before publish
+## Publish status
 
-- Complete self-custody transfer for the ERC-8004 identity.
-- Add Moltbook post URL.
-- Final publish from draft.
+- Self-custody transfer complete:
+  `https://basescan.org/tx/0x2f5817d8d3b2dfa5bfabddc0835b06de600c8020ab71b4458c0c5850ae8745b1`
+- Moltbook post live:
+  `https://www.moltbook.com/post/f30f442c-9857-40ea-80e6-3061162a323c`
+- Synthesis submission published under slug `ghostbroker-3718`
 
 ## Current live integration status
 
@@ -46,4 +48,3 @@
 - ENS testnet name registration.
 - Self Agent ID (ERC-8004) in a load-bearing way.
 - Real autonomous agent registry (current registry is demo/testnet).
-- Moltbook post.
