@@ -21,18 +21,29 @@
 - Project slug: `ghostbroker-ae15`
 - Status: `draft`
 
-## Current blockers before publish
+## Public assets
 
-- Wire transaction execution on top of the Uniswap quote path instead of stopping at quote retrieval.
-- Add at least one additional trust primitive that is genuinely load-bearing (`Self`, `Filecoin`, or both).
-- Add deployed demo URL.
-- Add video URL.
+- Deployed app: `https://synthesis-hackathon-ghostbroker.vercel.app/`
+- Demo video: `https://youtu.be/NXsUF660P9o`
+
+## Remaining blockers before publish
+
 - Complete self-custody transfer for the ERC-8004 identity.
 - Add Moltbook post URL.
+- Final publish from draft.
 
 ## Current live integration status
 
-- Venice evaluation is live in the app and returns `providerUsed: "venice"` when the API key is present.
-- MetaMask bounded execution permission requests are live for supported wallets.
-- Uniswap quote retrieval is live when a wallet and API key are present; transaction execution is still pending.
-- Filecoin receipt storage is wired through Lighthouse; it falls back to a local placeholder until `LIGHTHOUSE_API_KEY` is configured.
+- Venice evaluation is live. Server-side inference via `zai-org-glm-4.7-flash` returns `providerUsed: "venice"`.
+- MetaMask bounded execution permission requests are live for wallets that support `erc20-token-periodic` (MetaMask Flask). Honest `simulated` fallback for unsupported wallets.
+- Uniswap V3 quote retrieval is live on Base Sepolia via QuoterV2 contract. Settlement execution path is wired for native ETH transfer, ERC-20 transfer, and swap-router execution (WETH wrap + approve + exactInputSingle).
+- Filecoin receipt storage is live via Lighthouse SDK with real CIDs. Falls back to local placeholder when `LIGHTHOUSE_API_KEY` is missing.
+- Base Sepolia execution verified: factory, quoter, router, and USDC/WETH pools all confirmed on chain 84532.
+
+## What is not implemented
+
+- OpenServ agent registration wrapper.
+- ENS testnet name registration.
+- Self Agent ID (ERC-8004) in a load-bearing way.
+- Real autonomous agent registry (current registry is demo/testnet).
+- Moltbook post.

@@ -4,6 +4,8 @@
   "description": "GhostBroker is an agent procurement layer that privately evaluates specialist agents, routes constrained approvals, and settles paid work onchain with durable receipts.",
   "problemStatement": "Humans and agents increasingly need help from other agents, but the current workflow is unsafe and incoherent. Sensitive requirements get sprayed across tools, users hand over too much wallet authority, and successful work is hard to verify or settle cleanly. GhostBroker makes paid agent coordination trustworthy by combining private evaluation, delegated execution, and onchain settlement.",
   "repoURL": "https://github.com/MajorTimberWolf/ghostbroker",
+  "demoURL": "https://synthesis-hackathon-ghostbroker.vercel.app/",
+  "videoURL": "https://youtu.be/NXsUF660P9o",
   "trackUUIDs": [
     "ea3b366947c54689bd82ae80bf9f3310",
     "0d69d56a8a084ac5b7dbe0dc1da73e1d",
@@ -35,7 +37,8 @@
       "Venice API",
       "MetaMask Smart Accounts Kit",
       "viem",
-      "Uniswap Trade API",
+      "Uniswap QuoterV2",
+      "Uniswap SwapRouter",
       "Lighthouse SDK"
     ],
     "helpfulResources": [
@@ -52,7 +55,8 @@
       "https://api-docs.uniswap.org/api-reference/swapping/quote",
       "https://api-docs.uniswap.org/guides/faqs",
       "https://docs.filecoin.io/builder-cookbook/data-storage/store-data",
-      "https://docs.lighthouse.storage/lighthouse-1/how-to/upload-data/buffer"
+      "https://docs.lighthouse.storage/lighthouse-1/how-to/upload-data/buffer",
+      "https://docs.base.org/base-chain/network-information/ecosystem-contracts"
     ],
     "helpfulSkills": [
       {
