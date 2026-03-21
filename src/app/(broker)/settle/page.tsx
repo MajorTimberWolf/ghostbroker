@@ -31,8 +31,12 @@ export default function SettlePage() {
   }
 
   const settlement = broker.settlement;
+  const canExecuteLive =
+    settlement.executionKind === "native-transfer" ||
+    settlement.executionKind === "erc20-transfer" ||
+    settlement.executionKind === "swap-router";
   const hasTxExecution = Boolean(broker.receipt?.txHash ?? settlement.txHash);
-  const isLiveExecution = hasTxExecution || broker.settlementProviderUsed === "uniswap";
+  const isLiveExecution = hasTxExecution || canExecuteLive;
   const txHash = broker.receipt?.txHash ?? settlement.txHash;
 
   return (
@@ -43,7 +47,9 @@ export default function SettlePage() {
         description={
           isLiveExecution
             ? "Execute the bounded settlement and store a durable receipt onchain."
-            : "Record the settlement plan and store a durable receipt while live execution remains unavailable."
+            : broker.settlementProviderUsed === "uniswap"
+              ? "Record the live quote and durable receipt while router execution remains unavailable in this build."
+              : "Record the settlement plan and store a durable receipt while live execution remains unavailable."
         }
       />
 
@@ -223,8 +229,9 @@ export default function SettlePage() {
             <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4 space-y-3">
               {!isLiveExecution && (
                 <p className="text-[0.82rem] leading-7 text-[var(--ink-soft)]">
-                  Settlement plan recorded. Live onchain execution is still pending a
-                  funded environment with a supported quote path.
+                  {broker.settlementProviderUsed === "uniswap"
+                    ? "Live quote recorded. Router execution is still pending a fully wired swap execution path in this build."
+                    : "Settlement plan recorded. Live onchain execution is still pending a funded environment with a supported quote path."}
                 </p>
               )}
               <p className="text-[0.82rem] leading-7 text-[var(--ink-soft)]">

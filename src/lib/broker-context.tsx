@@ -546,9 +546,12 @@ export function BrokerProvider({ children }: { children: ReactNode }) {
     setBroker((s) => ({ ...s, receiptPending: true, receiptError: null, receiptDiagnostics: [] }));
     try {
       let settlementPlan = broker.settlement;
-      const shouldExecuteLive = broker.settlementProviderUsed === "uniswap";
+      const canExecuteLive =
+        broker.settlement.executionKind === "native-transfer" ||
+        broker.settlement.executionKind === "erc20-transfer" ||
+        broker.settlement.executionKind === "swap-router";
 
-      if (shouldExecuteLive && broker.settlement.executionKind !== "receipt-only") {
+      if (canExecuteLive) {
         const txHash = await executeSettlementPlan(broker.settlement);
         settlementPlan = {
           ...broker.settlement,
@@ -599,7 +602,6 @@ export function BrokerProvider({ children }: { children: ReactNode }) {
     broker.settlement,
     broker.evaluationId,
     broker.taskSnapshot,
-    broker.settlementProviderUsed,
   ]);
 
   const reset = useCallback(() => {

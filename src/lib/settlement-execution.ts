@@ -7,11 +7,16 @@ import type { SettlementPlan } from "@/lib/ghostbroker";
 import { getMetaMaskProvider } from "@/lib/metamask";
 
 const erc20Abi = parseAbi([
+  "function approve(address spender, uint256 amount) returns (bool)",
   "function transfer(address to, uint256 amount) returns (bool)",
 ]);
 
+const wethAbi = parseAbi([
+  "function deposit() payable",
+]);
+
 const swapRouterAbi = parseAbi([
-  "function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)",
+  "function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)",
 ]);
 
 function resolveChain(chainId: number | null) {
@@ -102,6 +107,24 @@ export async function executeSettlementPlan(settlement: SettlementPlan): Promise
         );
       }
 
+      const wrapHash = await walletClient.writeContract({
+        account,
+        address: settlement.tokenInAddress,
+        abi: wethAbi,
+        functionName: "deposit",
+        value: BigInt(settlement.amountInBaseUnits),
+      });
+      await publicClient.waitForTransactionReceipt({ hash: wrapHash });
+
+      const approvalHash = await walletClient.writeContract({
+        account,
+        address: settlement.tokenInAddress,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [settlement.routerAddress, BigInt(settlement.amountInBaseUnits)],
+      });
+      await publicClient.waitForTransactionReceipt({ hash: approvalHash });
+
       hash = await walletClient.writeContract({
         account,
         address: settlement.routerAddress,
@@ -113,13 +136,12 @@ export async function executeSettlementPlan(settlement: SettlementPlan): Promise
             tokenOut: settlement.tokenOutAddress,
             fee: settlement.feeTier,
             recipient: settlement.recipient,
-            deadline: BigInt(Math.floor(Date.now() / 1000) + 60 * 20),
             amountIn: BigInt(settlement.amountInBaseUnits),
             amountOutMinimum: BigInt(settlement.amountOutMinimumBaseUnits),
             sqrtPriceLimitX96: BigInt(0),
           },
         ],
-        value: BigInt(settlement.amountInBaseUnits),
+        value: BigInt(0),
       });
       break;
     default:
