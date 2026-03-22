@@ -38,6 +38,11 @@ export default function SettlePage() {
   const hasTxExecution = Boolean(broker.receipt?.txHash ?? settlement.txHash);
   const isLiveExecution = hasTxExecution || canExecuteLive;
   const txHash = broker.receipt?.txHash ?? settlement.txHash;
+  const receiptVerificationURL = broker.receipt
+    ? broker.receipt.receiptAnchor.startsWith("ipfs://")
+      ? `https://ipfs.io/ipfs/${broker.receipt.receiptAnchor.replace("ipfs://", "")}`
+      : broker.receipt.receiptAnchor
+    : null;
 
   return (
     <>
@@ -223,6 +228,17 @@ export default function SettlePage() {
                 target="_blank"
               >
                 View tx on Base Sepolia
+              </a>
+            )}
+
+            {receiptVerificationURL && (
+              <a
+                className="mt-4 ml-3 inline-flex rounded-xl border border-[var(--border-strong)] bg-white px-4 py-2 text-[0.78rem] font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent-blue)] hover:text-[var(--accent-blue)]"
+                href={receiptVerificationURL}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Verify receipt on IPFS
               </a>
             )}
 

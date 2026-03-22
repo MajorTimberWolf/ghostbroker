@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 
 import { BrokerProvider, useBroker, type WorkflowStep } from "@/lib/broker-context";
 import { formatAddress } from "@/lib/metamask";
+import { Badge, Card, SectionLabel } from "@/components/ui";
 
 const steps: { id: WorkflowStep; label: string; href: string }[] = [
   { id: "intake", label: "Intake", href: "/" },
@@ -167,15 +168,110 @@ function TopNav() {
 /* ── Layout shell ── */
 
 function BrokerLayoutInner({ children }: { children: ReactNode }) {
+  const { broker } = useBroker();
+
   return (
     <div className="flex min-h-screen flex-col">
       <TopNav />
       <main className="flex-1">
         <div className="mx-auto max-w-2xl px-6 py-12 sm:px-8 lg:py-16">
           {children}
+          <RealityCheckCard
+            veniceActive={broker.providerUsed === "venice"}
+            receiptLive={broker.receiptProviderUsed === "filecoin"}
+            approvalMode={broker.approvalMode}
+          />
         </div>
       </main>
     </div>
+  );
+}
+
+function RealityCheckCard({
+  veniceActive,
+  receiptLive,
+  approvalMode,
+}: {
+  veniceActive: boolean;
+  receiptLive: boolean;
+  approvalMode: "wallet-granted" | "simulated" | null;
+}) {
+  const rows = [
+    {
+      label: "Venice",
+      detail: veniceActive
+        ? "Real server-side private evaluation is active."
+        : "Real server-side private evaluation drives ranking and memo.",
+      badge: "real",
+      variant: "success" as const,
+    },
+    {
+      label: "MetaMask",
+      detail:
+        approvalMode === "wallet-granted"
+          ? "Real ERC-7715 execution permission granted by wallet."
+          : approvalMode === "simulated"
+            ? "Real ERC-7715 request path, simulated only when wallet support is missing."
+            : "Real ERC-7715 request path with honest fallback when wallet support is missing.",
+      badge:
+        approvalMode === "wallet-granted"
+          ? "wallet-granted"
+          : approvalMode === "simulated"
+            ? "simulated"
+            : "hybrid",
+      variant: approvalMode === "simulated" ? ("warning" as const) : ("success" as const),
+    },
+    {
+      label: "Uniswap",
+      detail: "Real Base Sepolia quote and settlement execution path.",
+      badge: "real",
+      variant: "success" as const,
+    },
+    {
+      label: "Filecoin",
+      detail: receiptLive
+        ? "Receipt pinned through Lighthouse with verifiable IPFS/Filecoin anchor."
+        : "Receipt storage is real in deployed runs, with an honest local fallback if storage is unavailable.",
+      badge: receiptLive ? "filecoin" : "hybrid",
+      variant: receiptLive ? ("success" as const) : ("warning" as const),
+    },
+    {
+      label: "ENS",
+      detail: "Display names only in this build. No onchain ENS registration or resolution yet.",
+      badge: "cosmetic",
+      variant: "warning" as const,
+    },
+  ];
+
+  return (
+    <Card className="mt-10 overflow-hidden border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,246,240,0.9))]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <SectionLabel>Reality check</SectionLabel>
+          <p className="mt-2 max-w-lg text-[0.82rem] leading-7 text-[var(--ink-soft)]">
+            This is the fast judge view of what is real, what is hybrid, and what is still just presentation.
+          </p>
+        </div>
+        <Badge label="Judge map" variant="neutral" />
+      </div>
+
+      <div className="mt-5 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] bg-white/80">
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            className="grid gap-3 px-4 py-4 sm:grid-cols-[120px_minmax(0,1fr)_auto] sm:items-center"
+          >
+            <p className="font-mono text-[0.62rem] uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+              {row.label}
+            </p>
+            <p className="text-[0.8rem] leading-6 text-[var(--ink-soft)]">{row.detail}</p>
+            <div className="sm:justify-self-end">
+              <Badge label={row.badge} variant={row.variant} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
